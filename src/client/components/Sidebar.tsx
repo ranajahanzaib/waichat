@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Conversation, StorageMode } from "../storage";
 import ConfirmModal from "./ConfirmModal";
 
@@ -35,7 +35,51 @@ export default function Sidebar({
 }: SidebarProps) {
   const [pendingDelete, setPendingDelete] = useState<Conversation | null>(null);
   const [pendingMove, setPendingMove] = useState<Conversation | null>(null);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const targetMode: StorageMode = currentMode === "cloud" ? "local" : "cloud";
+
+  const handleTouchStart = (cId: string) => {
+    longPressTimer.current = setTimeout(() => {
+      setOpenMenuId(cId);
+      longPressTimer.current = null;
+    }, 500);
+  };
+
+  const handleTouchEnd = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  };
+
+  const handleTouchMove = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setOpenMenuId(null);
+      }
+    };
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpenMenuId(null);
+    };
+
+    if (openMenuId) {
+      document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener("keydown", handleEscape);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [openMenuId]);
 
   return (
     <>
@@ -109,75 +153,134 @@ export default function Sidebar({
             const isMoveDisabled = isMoving || (activeId === c.id && isStreaming);
 
             return (
-            <div
-              key={c.id}
-              className={`group flex items-center justify-between rounded-lg px-3 py-2 cursor-pointer text-[13px] md:text-sm transition-all duration-150 ${
-                activeId === c.id
-                  ? currentMode === "cloud"
-                    ? "bg-brand-cloud text-white font-medium"
-                    : "bg-brand-local text-gray-900 font-medium"
-                  : "text-gray-600 hover:bg-black/5 hover:text-gray-900 dark:text-white/65 dark:hover:bg-white/5 dark:hover:text-white/95"
-              }`}
-              onClick={() => onSelect(c.id)}
-            >
-              <span className="truncate">{c.title}</span>
-              <div className="flex items-center gap-0.5 shrink-0 ml-2">
-                {/* Move button */}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (!isMoveDisabled) setPendingMove(c);
-                  }}
-                  disabled={isMoveDisabled}
-                  className={`p-1.5 rounded-md focus:outline-none transition-all ${
-                    isMoveDisabled
-                      ? "opacity-30 cursor-not-allowed"
-                      : activeId === c.id
-                        ? currentMode === "cloud"
-                          ? "text-white/70 hover:text-white opacity-100"
-                          : "text-gray-900/60 hover:text-gray-900 opacity-100"
-                        : "text-gray-400 hover:text-brand-cloud dark:text-white/40 dark:hover:text-brand-cloud opacity-0 group-hover:opacity-100"
-                  }`}
-                  aria-label={`Move to ${targetMode}`}
-                  title={isMoveDisabled && isStreaming ? "Stop generation before moving" : `Move to ${targetMode}`}
-                >
-                  {isMoving ? (
-                    <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" opacity="0.25" />
-                      <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                    </svg>
-                  ) : (
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-4 h-4">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 17L17 7M17 7H8M17 7v9" />
-                    </svg>
-                  )}
-                </button>
-                {/* Delete button */}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setPendingDelete(c);
-                  }}
-                  className={`p-1.5 rounded-md focus:outline-none transition-all ${
-                    activeId === c.id
-                      ? currentMode === "cloud"
-                        ? "text-white/70 hover:text-white opacity-100"
-                        : "text-gray-900/60 hover:text-gray-900 opacity-100"
-                      : "text-gray-400 hover:text-red-500 dark:text-white/40 dark:hover:text-red-400 opacity-0 group-hover:opacity-100"
-                  }`}
-                  aria-label="Delete conversation"
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-4 h-4">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M6 18L18 6M6 6l12 12"
-                    ></path>
-                  </svg>
-                </button>
+              <div
+                key={c.id}
+                className={`group flex items-center justify-between rounded-lg px-3 py-2 cursor-pointer text-[13px] md:text-sm transition-all duration-150 ${
+                  activeId === c.id
+                    ? currentMode === "cloud"
+                      ? "bg-brand-cloud text-white font-medium"
+                      : "bg-brand-local text-gray-900 font-medium"
+                    : "text-gray-600 hover:bg-black/5 hover:text-gray-900 dark:text-white/65 dark:hover:bg-white/5 dark:hover:text-white/95"
+                }`}
+                onClick={() => onSelect(c.id)}
+                onTouchStart={() => handleTouchStart(c.id)}
+                onTouchEnd={handleTouchEnd}
+                onTouchMove={handleTouchMove}
+                onContextMenu={(e) => {
+                  if (window.innerWidth < 768) e.preventDefault();
+                }}
+              >
+                <span className="truncate">{c.title}</span>
+                <div className="flex items-center shrink-0 ml-2">
+                  <div className="relative" ref={openMenuId === c.id ? menuRef : null}>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenMenuId(openMenuId === c.id ? null : c.id);
+                      }}
+                      className={`p-1.5 rounded-md focus:outline-none transition-all ${
+                        openMenuId === c.id
+                          ? activeId === c.id
+                            ? "bg-white/20 text-white"
+                            : "bg-black/5 text-gray-900 dark:bg-white/10 dark:text-white"
+                          : activeId === c.id
+                            ? currentMode === "cloud"
+                              ? "text-white/70 hover:text-white opacity-100"
+                              : "text-gray-900/60 hover:text-gray-900 opacity-100"
+                            : "text-gray-400 hover:text-gray-900 dark:text-white/40 dark:hover:text-white/95 opacity-0 group-hover:opacity-100"
+                      }`}
+                      aria-label="Conversation actions"
+                    >
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        className="w-4 h-4"
+                      >
+                        <circle cx="12" cy="12" r="1" strokeWidth="2" />
+                        <circle cx="12" cy="5" r="1" strokeWidth="2" />
+                        <circle cx="12" cy="19" r="1" strokeWidth="2" />
+                      </svg>
+                    </button>
+
+                    {openMenuId === c.id && (
+                      <div className="absolute right-0 mt-1 w-44 rounded-xl bg-white dark:bg-[#1c1c1e] shadow-xl border border-black/5 dark:border-white/10 py-1.5 z-50 overflow-hidden backdrop-blur-xl">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOpenMenuId(null);
+                            if (!isMoveDisabled) setPendingMove(c);
+                          }}
+                          disabled={isMoveDisabled}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-left text-[13px] text-gray-700 dark:text-white/80 hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          {isMoving ? (
+                            <svg
+                              className="w-3.5 h-3.5 animate-spin"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                            >
+                              <circle
+                                cx="12"
+                                cy="12"
+                                r="10"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                opacity="0.25"
+                              />
+                              <path
+                                d="M4 12a8 8 0 018-8"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                              />
+                            </svg>
+                          ) : (
+                            <svg
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              className="w-3.5 h-3.5"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth="2"
+                                d="M7 17L17 7M17 7H8M17 7v9"
+                              />
+                            </svg>
+                          )}
+                          Move Chat to {targetMode === "cloud" ? "Cloud" : "Local"}
+                        </button>
+                        <div className="h-[0.5px] bg-black/5 dark:bg-white/10 mx-2 my-1" />
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOpenMenuId(null);
+                            setPendingDelete(c);
+                          }}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-left text-[13px] text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
+                        >
+                          <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            className="w-3.5 h-3.5"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth="2"
+                              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                            />
+                          </svg>
+                          Delete
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
-            </div>
             );
           })}
         </nav>
