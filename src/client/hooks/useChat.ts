@@ -67,15 +67,12 @@ export function useChat(
       const id = pendingSelectionRef.current;
       pendingSelectionRef.current = null;
       selectAfterModeChangeRef.current = false;
-      // Load conversations first, then select
-      storage.getConversations().then((data) => {
-        setConversations(data);
-        storage.getConversation(id).then((result) => {
-          if (result) {
-            setActiveConversation(result.conversation);
-            setMessages(result.messages);
-          }
-        });
+      // Select the specific conversation (conversation list is loaded by App.tsx)
+      storage.getConversation(id).then((result) => {
+        if (result) {
+          setActiveConversation(result.conversation);
+          setMessages(result.messages);
+        }
       });
     }
   }, [storage, storageMode, pendingSelectionRef]);

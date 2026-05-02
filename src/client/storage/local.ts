@@ -163,4 +163,18 @@ export class LocalStorage implements StorageAdapter {
   ): Promise<{ conversation: Conversation; messages: Message[] } | null> {
     return this.getConversation(id);
   }
+
+  async importConversation(conversation: Conversation, messages: Message[]): Promise<void> {
+    // Filter out any existing entry with the same ID to prevent duplicates on retry
+    const existing = this.getConversationsRaw().filter((c) => c.id !== conversation.id);
+    existing.push({
+      id: conversation.id,
+      title: conversation.title,
+      model: conversation.model,
+      created_at: conversation.created_at,
+      updated_at: conversation.updated_at,
+    });
+    this.setConversations(existing);
+    this.setMessages(conversation.id, messages);
+  }
 }

@@ -32,6 +32,7 @@ export interface StorageAdapter {
   updateConversationTitle(id: string, title: string): Promise<void>;
   deleteMessage(conversationId: string, messageId: string): Promise<DeleteMessageResult>;
   exportConversation(id: string): Promise<{ conversation: Conversation; messages: Message[] } | null>;
+  importConversation(conversation: Conversation, messages: Message[]): Promise<void>;
 }
 
 export type StorageMode = "cloud" | "local";
