@@ -78,7 +78,7 @@ export function useChat(
         });
       });
     }
-  });
+  }, [storage, storageMode, pendingSelectionRef]);
 
   const loadConversations = useCallback(async () => {
     try {

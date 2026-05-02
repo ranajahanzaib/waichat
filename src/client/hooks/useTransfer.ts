@@ -121,28 +121,27 @@ export function useTransfer(): UseTransferReturn {
           // Cloud → Local: write to localStorage, then delete from cloud
           const targetStorage = createStorage("local");
 
-          // Write conversation
+          // Write conversation (filter first to prevent duplicates on retry)
           const localConversations = JSON.parse(
             localStorage.getItem("waichat:conversations") ?? "[]",
           ) as Conversation[];
-          localConversations.push({
+          const filtered = localConversations.filter((c) => c.id !== conversation.id);
+          filtered.push({
             id: conversation.id,
             title: conversation.title,
             model: conversation.model,
             created_at: conversation.created_at,
             updated_at: conversation.updated_at,
           });
-          localStorage.setItem("waichat:conversations", JSON.stringify(localConversations));
+          localStorage.setItem("waichat:conversations", JSON.stringify(filtered));
 
           // Write messages
           localStorage.setItem(`waichat:messages:${conversation.id}`, JSON.stringify(messages));
 
           // Delete from cloud
           try {
-            const res = await fetch(`/api/conversations/${conversation.id}`, {
-              method: "DELETE",
-            });
-            if (!res.ok) throw new Error("DELETE failed");
+            const cloudStorage = createStorage("cloud");
+            await cloudStorage.deleteConversation(conversation.id);
           } catch {
             // Cloud delete failed - mark for retry on next app load
             const pending = JSON.parse(
