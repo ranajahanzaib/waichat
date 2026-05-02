@@ -117,7 +117,7 @@ export default function App() {
     () => localStorage.getItem(SYSTEM_PROMPT_KEY) ?? "",
   );
   const [syncSettings, setSyncSettings] = useState(
-    () => localStorage.getItem(SYNC_SETTINGS_KEY) === "true",
+    () => (localStorage.getItem(SYNC_SETTINGS_KEY) ?? localStorage.getItem("waichat:sync-system-prompt")) === "true",
   );
   const [settingsOpen, setSettingsOpen] = useState(false);
 
@@ -307,11 +307,11 @@ export default function App() {
     }
   };
 
-  const handleDefaultModelChange = async (m: string) => {
+  const handleDefaultModelChange = async (m: string, sync: boolean = syncSettings) => {
     setDefaultModel(m);
     localStorage.setItem(DEFAULT_MODEL_KEY, m);
 
-    if (syncSettings) {
+    if (sync) {
       try {
         await fetch("/api/settings/default_model", {
           method: "POST",
@@ -328,7 +328,7 @@ export default function App() {
     if (activeConversation) {
       updateActiveModel(m);
     } else {
-      handleDefaultModelChange(m);
+      handleDefaultModelChange(m, syncSettings);
     }
   };
 

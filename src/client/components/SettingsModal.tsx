@@ -9,7 +9,7 @@ interface SettingsModalProps {
   storageMode: StorageMode;
   onStorageModeChange: (mode: StorageMode) => void;
   defaultModel: string;
-  onDefaultModelChange: (model: string) => void;
+  onDefaultModelChange: (model: string, sync: boolean) => void;
   systemPrompt: string;
   syncSettings: boolean;
   onSystemPromptChange: (prompt: string, sync: boolean) => void;
@@ -64,7 +64,7 @@ export default function SettingsModal({
 
   const handleSave = () => {
     onStorageModeChange(draftStorageMode);
-    onDefaultModelChange(draftModel);
+    onDefaultModelChange(draftModel, draftSyncSettings);
     onSystemPromptChange(draftSystemPrompt, draftSyncSettings);
     onClose();
   };

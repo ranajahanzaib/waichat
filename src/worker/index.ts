@@ -203,12 +203,18 @@ app.delete("/api/conversations/:id", async (c) => {
 app.patch("/api/conversations/:id", async (c) => {
   const id = c.req.param("id");
   const body = await c.req.json<{ model?: string; title?: string }>();
+  const db = c.env.DB;
+
+  const conversation = await getConversation(db, id);
+  if (!conversation) {
+    return c.json({ error: "Conversation not found" }, 404);
+  }
 
   if (body.model) {
-    await updateConversationModel(c.env.DB, id, body.model);
+    await updateConversationModel(db, id, body.model);
   }
   if (body.title) {
-    await updateConversationTitle(c.env.DB, id, body.title);
+    await updateConversationTitle(db, id, body.title);
   }
 
   return c.json({ success: true });
