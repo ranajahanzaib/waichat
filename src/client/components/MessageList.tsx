@@ -590,7 +590,7 @@ export default function MessageList({
                         e.target.style.height = "auto";
                         e.target.style.height = `${e.target.scrollHeight}px`;
                       }}
-                      className="w-full bg-transparent text-[15px] md:text-[16px] text-gray-900 dark:text-white/95 border-none outline-none resize-none min-h-[100px]"
+                      className="w-full bg-transparent text-[15px] md:text-[16px] text-gray-900 dark:text-white/95 border-none outline-none resize-none min-h-[100px] max-h-[500px] overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-black/10 dark:[&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full"
                       placeholder="Edit your message..."
                     />
                     <div className="flex justify-end gap-2 mt-3">
