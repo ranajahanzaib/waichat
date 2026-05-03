@@ -138,7 +138,7 @@ export default function SettingsModal({
         if (e.target === overlayRef.current) handleCancel();
       }}
     >
-      <div className="w-full max-w-md bg-white/95 dark:bg-[#1e1e20]/95 backdrop-blur-2xl border-[0.5px] border-black/10 dark:border-white/10 rounded-2xl shadow-[0_20px_40px_rgba(0,0,0,0.1)] dark:shadow-[0_20px_40px_rgba(0,0,0,0.5)] overflow-hidden max-h-[90vh] flex flex-col">
+      <div className="w-full max-w-3xl bg-white/95 dark:bg-[#1e1e20]/95 backdrop-blur-2xl border-[0.5px] border-black/10 dark:border-white/10 rounded-2xl shadow-[0_20px_40px_rgba(0,0,0,0.1)] dark:shadow-[0_20px_40px_rgba(0,0,0,0.5)] overflow-hidden max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b-[0.5px] border-black/10 dark:border-white/10 shrink-0">
           <h2 className="text-base md:text-lg font-semibold text-gray-900 dark:text-white/95 tracking-tight">
@@ -156,9 +156,11 @@ export default function SettingsModal({
         </div>
 
         {/* Scrollable body */}
-        <div className="overflow-y-auto flex-1 px-6 py-6 space-y-8 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-black/10 dark:[&::-webkit-scrollbar-thumb]:bg-white/10 [&::-webkit-scrollbar-thumb]:rounded-full">
-          {/* Preferences */}
-          <section>
+        <div className="overflow-y-auto flex-1 px-6 py-6 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-black/10 dark:[&::-webkit-scrollbar-thumb]:bg-white/10 [&::-webkit-scrollbar-thumb]:rounded-full">
+          <div className="flex flex-col md:flex-row gap-10">
+            {/* Left Column: Preferences */}
+            <div className="flex-[1.3] space-y-8">
+              <section>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-[11px] md:text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-white/40">
                 Preferences
@@ -228,24 +230,6 @@ export default function SettingsModal({
                 </p>
               </div>
 
-              {/* Default model */}
-              <div>
-                <label className="block text-[13px] md:text-sm font-medium text-gray-700 dark:text-white/80 mb-2">
-                  Default Model
-                </label>
-                {/* Wrapper provides the input-box styling, ModelPicker stays transparent inside! */}
-                <div className="w-full bg-black/5 dark:bg-black/20 border-[0.5px] border-black/10 dark:border-white/10 rounded-xl px-3 py-2.5 focus-within:border-[#0A84FF] focus-within:bg-white dark:focus-within:bg-black/30 transition-colors">
-                  <ModelPicker
-                    models={models}
-                    value={draftModel}
-                    onChange={setDraftModel}
-                    className="w-full"
-                  />
-                </div>
-                <p className="mt-1.5 text-xs text-gray-500 dark:text-white/40">
-                  Fallback for existing chats and default for new ones.
-                </p>
-              </div>
               {/* System prompt */}
               <div>
                 <div className="flex items-center justify-between mb-2">
@@ -257,7 +241,7 @@ export default function SettingsModal({
                   value={draftSystemPrompt}
                   onChange={(e) => setDraftSystemPrompt(e.target.value)}
                   placeholder="You are a helpful assistant..."
-                  rows={4}
+                  rows={10}
                   className="w-full text-base md:text-sm bg-black/5 dark:bg-black/20 border-[0.5px] border-black/10 dark:border-white/10 rounded-xl px-3 py-2.5 text-gray-900 dark:text-white/95 placeholder:text-gray-400 dark:placeholder:text-white/30 outline-none focus:border-[#0A84FF] focus:bg-white dark:focus:bg-black/30 transition-colors resize-none [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-black/10 dark:[&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full"
                 />
                 <p className="mt-1.5 text-xs text-gray-500 dark:text-white/40">
@@ -265,10 +249,34 @@ export default function SettingsModal({
                 </p>
               </div>
             </div>
-          </section>
+              </section>
+            </div>
 
-          {/* Conversations */}
-          <section>
+            {/* Vertical Divider */}
+            <div className="hidden md:block w-[1px] bg-black/10 dark:bg-white/10 shrink-0" />
+
+            {/* Right Column: Model, Conversations & Data Management */}
+            <div className="flex-1 space-y-8">
+              {/* Default Model */}
+              <section>
+                <h3 className="text-[11px] md:text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-white/40 mb-4">
+                  Default Model
+                </h3>
+                <div className="w-full bg-black/5 dark:bg-black/20 border-[0.5px] border-black/10 dark:border-white/10 rounded-xl px-3 py-2.5 focus-within:border-[#0A84FF] focus-within:bg-white dark:focus-within:bg-black/30 transition-colors">
+                  <ModelPicker
+                    models={models}
+                    value={draftModel}
+                    onChange={setDraftModel}
+                    className="w-full"
+                  />
+                </div>
+                <p className="mt-1.5 text-xs text-gray-500 dark:text-white/40">
+                  Fallback for existing chats and default for new ones.
+                </p>
+              </section>
+
+              {/* Conversations */}
+              <section>
             <h3 className="text-[11px] md:text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-white/40 mb-4">
               Conversations
             </h3>
@@ -375,7 +383,7 @@ export default function SettingsModal({
                           </span>
                         </label>
                       ))}
-                      <div className="flex gap-2 mt-2">
+                      <div className="flex justify-end gap-2 mt-2">
                         <button
                           onClick={confirmExport}
                           className="text-[11px] md:text-xs font-medium text-white bg-blue-500 hover:bg-blue-600 rounded-full px-3 py-1 transition-colors"
@@ -433,7 +441,7 @@ export default function SettingsModal({
                     <p className="text-xs text-red-600 dark:text-red-400 font-medium mb-2">
                       This will overwrite any existing conversations with matching IDs. Continue?
                     </p>
-                    <div className="flex gap-2">
+                    <div className="flex justify-end gap-2">
                       <button
                         onClick={confirmImport}
                         className="text-[11px] md:text-xs font-medium text-white bg-red-500 hover:bg-red-600 rounded-full px-3 py-1 transition-colors"
@@ -451,20 +459,22 @@ export default function SettingsModal({
                 )}
               </div>
             </div>
-          </section>
+              </section>
+            </div>
+          </div>
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t-[0.5px] border-black/10 dark:border-white/10 flex gap-3 shrink-0 bg-black/[0.02] dark:bg-white/[0.02]">
+        <div className="px-6 py-4 border-t-[0.5px] border-black/10 dark:border-white/10 flex justify-end gap-3 shrink-0 bg-black/[0.01] dark:bg-white/[0.01]">
           <button
             onClick={handleCancel}
-            className="flex-1 py-2.5 text-[13px] md:text-sm font-medium text-gray-700 dark:text-white/80 bg-white/60 dark:bg-white/5 border-[0.5px] border-black/10 dark:border-white/10 hover:bg-white dark:hover:bg-white/10 hover:text-gray-900 dark:hover:text-white/95 rounded-full transition-all focus:outline-none"
+            className="px-5 py-2 text-[13px] md:text-sm font-medium text-gray-700 dark:text-white/80 bg-white/60 dark:bg-white/5 border-[0.5px] border-black/10 dark:border-white/10 hover:bg-white dark:hover:bg-white/10 hover:text-gray-900 dark:hover:text-white/95 rounded-full transition-all focus:outline-none"
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
-            className="flex-1 py-2.5 text-[13px] md:text-sm font-medium text-white bg-[#0A84FF] hover:bg-[#0070E0] rounded-full shadow-[0_2px_8px_rgba(10,132,255,0.2)] dark:shadow-[0_2px_8px_rgba(10,132,255,0.3)] transition-all focus:outline-none"
+            className="px-8 py-2 text-[13px] md:text-sm font-medium text-white bg-[#0A84FF] hover:bg-[#0070E0] rounded-full shadow-[0_2px_8px_rgba(10,132,255,0.2)] dark:shadow-[0_2px_8px_rgba(10,132,255,0.3)] transition-all focus:outline-none"
           >
             Save
           </button>
