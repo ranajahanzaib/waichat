@@ -140,6 +140,14 @@ export default function SettingsModal({
       setIsResetting(false);
     }
   };
+  const [activeTab, setActiveTab] = useState<"general" | "models" | "prompt" | "data">("general");
+
+  const tabs = [
+    { id: "general", label: "General" },
+    { id: "models", label: "Models" },
+    { id: "prompt", label: "System Prompt" },
+    { id: "data", label: "Data" },
+  ] as const;
 
   // Sync draft with props when modal opens
   useEffect(() => {
@@ -149,6 +157,7 @@ export default function SettingsModal({
       setDraftSystemPrompt(systemPrompt);
       setDraftSyncSettings(syncSettings);
       fetchSecretsStatus();
+      setActiveTab("general");
     }
   }, [open, storageMode, defaultModel, systemPrompt, syncSettings]);
 
@@ -228,7 +237,7 @@ export default function SettingsModal({
         if (e.target === overlayRef.current) handleCancel();
       }}
     >
-      <div className="w-full max-w-3xl bg-white/95 dark:bg-[#1e1e20]/95 backdrop-blur-2xl border-[0.5px] border-black/10 dark:border-white/10 rounded-2xl shadow-[0_20px_40px_rgba(0,0,0,0.1)] dark:shadow-[0_20px_40px_rgba(0,0,0,0.5)] overflow-hidden max-h-[90vh] flex flex-col">
+      <div className="w-full max-w-4xl bg-white/95 dark:bg-[#1e1e20]/95 backdrop-blur-2xl border-[0.5px] border-black/10 dark:border-white/10 rounded-2xl shadow-[0_20px_40px_rgba(0,0,0,0.1)] dark:shadow-[0_20px_40px_rgba(0,0,0,0.5)] overflow-hidden h-[600px] max-h-[90vh] flex flex-col transition-all">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b-[0.5px] border-black/10 dark:border-white/10 shrink-0">
           <h2 className="text-base md:text-lg font-semibold text-gray-900 dark:text-white/95 tracking-tight">
@@ -245,424 +254,467 @@ export default function SettingsModal({
           </button>
         </div>
 
-        {/* Scrollable body */}
-        <div className="overflow-y-auto flex-1 px-6 py-6 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-black/10 dark:[&::-webkit-scrollbar-thumb]:bg-white/10 [&::-webkit-scrollbar-thumb]:rounded-full">
-          <div className="flex flex-col md:flex-row gap-10">
-            {/* Left Column: Preferences */}
-            <div className="flex-[1.3] space-y-8">
-              <section>
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-[11px] md:text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-white/40">
-                    Preferences
-                  </h3>
-                  <label className="flex items-center gap-2 cursor-pointer group">
-                    <div className="relative flex items-center justify-center">
-                      <input
-                        type="checkbox"
-                        checked={draftSyncSettings}
-                        onChange={(e) => setDraftSyncSettings(e.target.checked)}
-                        className="peer sr-only"
-                      />
-                      <div className="w-8 h-4 bg-black/10 dark:bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-[#0A84FF]"></div>
-                    </div>
-                    <span className="text-[11px] md:text-xs font-medium text-gray-500 dark:text-white/40 group-hover:text-gray-900 dark:group-hover:text-white/80 transition-colors">
-                      Sync Settings to Cloud
-                    </span>
-                  </label>
-                </div>
-                <div className="space-y-5">
-                  {/* Theme Segmented Control */}
+        {/* Main Body with Sidebar/Tabs */}
+        <div className="flex-1 flex flex-col sm:flex-row overflow-hidden bg-black/[0.02] dark:bg-white/[0.02]">
+          {/* Sidebar / Top Nav */}
+          <div className="flex sm:flex-col overflow-x-auto sm:overflow-x-visible sm:w-48 shrink-0 border-b-[0.5px] sm:border-b-0 sm:border-r-[0.5px] border-black/10 dark:border-white/10 scrollbar-none">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`flex-1 sm:flex-none px-6 py-4 sm:py-3.5 text-[13px] md:text-sm font-medium transition-all text-center sm:text-left relative whitespace-nowrap ${
+                  activeTab === tab.id
+                    ? "text-[#0A84FF] sm:bg-[#0A84FF]/10"
+                    : "text-gray-500 dark:text-white/40 hover:text-gray-900 dark:hover:text-white/80 hover:bg-black/5 dark:hover:bg-white/5"
+                }`}
+              >
+                {tab.label}
+                {activeTab === tab.id && (
+                  <>
+                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#0A84FF] sm:hidden" />
+                    <div className="absolute top-0 bottom-0 left-0 w-1 bg-[#0A84FF] hidden sm:block" />
+                  </>
+                )}
+              </button>
+            ))}
+          </div>
+
+          {/* Tab Content Area */}
+          <div className="flex-1 overflow-y-auto p-6 md:p-8 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-black/10 dark:[&::-webkit-scrollbar-thumb]:bg-white/10 [&::-webkit-scrollbar-thumb]:rounded-full">
+            <div className="max-w-2xl">
+              {activeTab === "general" && (
+                <section className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
                   <div>
-                    <label className="block text-[13px] md:text-sm font-medium text-gray-700 dark:text-white/80 mb-2">
-                      Theme
-                    </label>
-                    <div className="flex rounded-full bg-black/5 dark:bg-black/20 p-1 border-[0.5px] border-black/5 dark:border-white/10">
-                      {(["system", "light", "dark"] as const).map((t) => (
-                        <button
-                          key={t}
-                          onClick={() => onThemeChange(t)}
-                          className={`flex-1 py-1.5 text-[13px] md:text-sm font-medium rounded-full transition-all duration-200 capitalize ${
-                            theme === t
-                              ? "bg-white dark:bg-white/15 text-gray-900 dark:text-white/95 shadow-sm"
-                              : "text-gray-500 hover:text-gray-900 hover:bg-black/5 dark:text-white/65 dark:hover:text-white/95 dark:hover:bg-white/5"
-                          }`}
-                        >
-                          {t}
-                        </button>
-                      ))}
+                    <h3 className="text-[11px] md:text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-white/40 mb-4">
+                      Preferences
+                    </h3>
+                    <div className="space-y-6">
+                      {/* Theme Segmented Control */}
+                      <div>
+                        <label className="block text-[13px] md:text-sm font-medium text-gray-700 dark:text-white/80 mb-2">
+                          Theme
+                        </label>
+                        <div className="flex rounded-full bg-black/5 dark:bg-black/20 p-1 border-[0.5px] border-black/5 dark:border-white/10">
+                          {(["system", "light", "dark"] as const).map((t) => (
+                            <button
+                              key={t}
+                              onClick={() => onThemeChange(t)}
+                              className={`flex-1 py-1.5 text-[13px] md:text-sm font-medium rounded-full transition-all duration-200 capitalize ${
+                                theme === t
+                                  ? "bg-white dark:bg-white/15 text-gray-900 dark:text-white/95 shadow-sm"
+                                  : "text-gray-500 hover:text-gray-900 hover:bg-black/5 dark:text-white/65 dark:hover:text-white/95 dark:hover:bg-white/5"
+                              }`}
+                            >
+                              {t}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Storage mode Segmented Control */}
+                      <div>
+                        <label className="block text-[13px] md:text-sm font-medium text-gray-700 dark:text-white/80 mb-2">
+                          Storage Mode
+                        </label>
+                        <div className="flex rounded-full bg-black/5 dark:bg-black/20 p-1 border-[0.5px] border-black/5 dark:border-white/10">
+                          {(["cloud", "local"] as StorageMode[]).map((mode) => (
+                            <button
+                              key={mode}
+                              onClick={() => setDraftStorageMode(mode)}
+                              className={`flex-1 py-1.5 text-[13px] md:text-sm font-medium rounded-full transition-all duration-200 ${
+                                draftStorageMode === mode
+                                  ? "bg-white dark:bg-white/15 text-gray-900 dark:text-white/95 shadow-sm"
+                                  : "text-gray-500 hover:text-gray-900 hover:bg-black/5 dark:text-white/65 dark:hover:text-white/95 dark:hover:bg-white/5"
+                              }`}
+                            >
+                              {mode === "cloud" ? "Cloud (D1)" : "Local (Browser)"}
+                            </button>
+                          ))}
+                        </div>
+                        <p className="mt-2 text-xs text-gray-500 dark:text-white/40 leading-relaxed">
+                          {draftStorageMode === "cloud"
+                            ? "Conversations saved to Cloudflare D1. Persists across devices."
+                            : "Conversations saved in your browser. Never leaves your device."}
+                        </p>
+                      </div>
+
+                      {/* Sync Settings */}
+                      <div className="flex items-center justify-between py-1">
+                        <div>
+                          <p className="text-[13px] md:text-sm font-medium text-gray-900 dark:text-white/95">
+                            Sync Settings to Cloud
+                          </p>
+                          <p className="text-[11px] md:text-xs text-gray-500 dark:text-white/40 mt-0.5">
+                            Auto-sync prompt and model preferences
+                          </p>
+                        </div>
+                        <label className="relative flex items-center cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={draftSyncSettings}
+                            onChange={(e) => setDraftSyncSettings(e.target.checked)}
+                            className="peer sr-only"
+                          />
+                          <div className="w-9 h-5 bg-black/10 dark:bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#0A84FF]"></div>
+                        </label>
+                      </div>
                     </div>
                   </div>
+                </section>
+              )}
 
-                  {/* Storage mode Segmented Control */}
+              {activeTab === "models" && (
+                <section className="space-y-10 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  {/* Default Model */}
                   <div>
-                    <label className="block text-[13px] md:text-sm font-medium text-gray-700 dark:text-white/80 mb-2">
-                      Storage Mode
-                    </label>
-                    <div className="flex rounded-full bg-black/5 dark:bg-black/20 p-1 border-[0.5px] border-black/5 dark:border-white/10">
-                      {(["cloud", "local"] as StorageMode[]).map((mode) => (
-                        <button
-                          key={mode}
-                          onClick={() => setDraftStorageMode(mode)}
-                          className={`flex-1 py-1.5 text-[13px] md:text-sm font-medium rounded-full transition-all duration-200 ${
-                            draftStorageMode === mode
-                              ? "bg-white dark:bg-white/15 text-gray-900 dark:text-white/95 shadow-sm"
-                              : "text-gray-500 hover:text-gray-900 hover:bg-black/5 dark:text-white/65 dark:hover:text-white/95 dark:hover:bg-white/5"
-                          }`}
-                        >
-                          {mode === "cloud" ? "Cloud (D1)" : "Local (Browser)"}
-                        </button>
-                      ))}
+                    <h3 className="text-[11px] md:text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-white/40 mb-4">
+                      Default Model
+                    </h3>
+                    <div className="w-full bg-black/5 dark:bg-black/20 border-[0.5px] border-black/10 dark:border-white/10 rounded-xl px-3 py-2.5 focus-within:border-[#0A84FF] focus-within:bg-white dark:focus-within:bg-black/30 transition-colors">
+                      <ModelPicker
+                        models={models}
+                        value={draftModel}
+                        onChange={setDraftModel}
+                        className="w-full"
+                      />
                     </div>
-                    <p className="mt-2 text-xs text-gray-500 dark:text-white/40 leading-relaxed">
-                      {draftStorageMode === "cloud"
-                        ? "Conversations saved to Cloudflare D1. Persists across devices."
-                        : "Conversations saved in your browser. Never leaves your device."}
+                    <p className="mt-2 text-xs text-gray-500 dark:text-white/40">
+                      Fallback for existing chats and default for new ones.
                     </p>
                   </div>
 
-                  {/* System prompt */}
+                  {/* Model Source Configuration */}
                   <div>
                     <div className="flex items-center justify-between mb-2">
-                      <label className="block text-[13px] md:text-sm font-medium text-gray-700 dark:text-white/80">
-                        System Prompt
-                      </label>
+                      <h3 className="text-[11px] md:text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-white/40">
+                        Model Source
+                      </h3>
+                      {secretsStatus.hasToken && (
+                        <span className="flex items-center gap-1 text-[10px] font-bold text-green-500 uppercase tracking-tighter bg-green-500/10 px-1.5 py-0.5 rounded">
+                          <div className="w-1 h-1 rounded-full bg-green-500 animate-pulse"></div>
+                          Connected
+                        </span>
+                      )}
                     </div>
+                    <p className="text-[11px] text-gray-500 dark:text-white/30 mb-4 italic">
+                      Access the full Workers AI model catalog with a read-only API token.
+                    </p>
+
+                    {!secretsStatus.isConfigurable ? (
+                      <div className="flex items-center justify-between py-2 px-1">
+                        <div className="flex items-center gap-2 text-red-500 dark:text-red-400">
+                          <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            className="w-4 h-4 stroke-[2.5]"
+                          >
+                            <path
+                              d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                          <p className="text-[13px] font-medium tracking-tight">
+                            SECRET_KEY is not configured.
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => setShowKeyGuideModal(true)}
+                          className="text-[12px] font-semibold text-gray-500 hover:text-gray-900 dark:text-white/40 dark:hover:text-white/90 transition-colors focus:outline-none"
+                        >
+                          How to fix this →
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between ml-1">
+                            <label className="block text-[11px] font-medium text-gray-500 dark:text-white/40">
+                              Account ID
+                            </label>
+                            <button
+                              onClick={() => setShowAccountHelp(true)}
+                              className="text-[10px] font-semibold text-[#0A84FF] hover:underline"
+                            >
+                              Where do I find this?
+                            </button>
+                          </div>
+                          <input
+                            type="text"
+                            value={cfAccountId}
+                            onChange={(e) => setCfAccountId(e.target.value)}
+                            placeholder={secretsStatus.accountId || "Your Cloudflare Account ID"}
+                            className="w-full text-[13px] bg-black/5 dark:bg-black/20 border-[0.5px] border-black/10 dark:border-white/10 rounded-xl px-3 py-2 text-gray-900 dark:text-white/95 placeholder:text-gray-400 dark:placeholder:text-white/30 outline-none focus:border-[#0A84FF] transition-colors"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between ml-1">
+                            <label className="block text-[11px] font-medium text-gray-500 dark:text-white/40">
+                              API Token (Workers AI Read)
+                            </label>
+                            <button
+                              onClick={() => setShowTokenHelp(true)}
+                              className="text-[10px] font-semibold text-[#0A84FF] hover:underline"
+                            >
+                              How to create this?
+                            </button>
+                          </div>
+                          <input
+                            type="password"
+                            value={cfApiToken}
+                            onChange={(e) => setCfApiToken(e.target.value)}
+                            placeholder={
+                              secretsStatus.hasToken ? "••••••••••••••••" : "Your API Token"
+                            }
+                            className="w-full text-[13px] bg-black/5 dark:bg-black/20 border-[0.5px] border-black/10 dark:border-white/10 rounded-xl px-3 py-2 text-gray-900 dark:text-white/95 placeholder:text-gray-400 dark:placeholder:text-white/30 outline-none focus:border-[#0A84FF] transition-colors"
+                          />
+                        </div>
+                        <div className="flex gap-2 pt-1">
+                          <button
+                            onClick={handleConnect}
+                            disabled={isConnecting || !cfAccountId || !cfApiToken}
+                            className="flex-1 text-[11px] md:text-xs font-medium text-white bg-[#0A84FF] hover:bg-[#0070E0] disabled:opacity-50 disabled:bg-gray-400 rounded-full px-3 py-2 transition-all focus:outline-none"
+                          >
+                            {isConnecting
+                              ? "Validating..."
+                              : secretsStatus.hasToken
+                                ? "Update Credentials"
+                                : "Connect & Refresh"}
+                          </button>
+                          {secretsStatus.hasToken && (
+                            <button
+                              onClick={handleReset}
+                              disabled={isResetting}
+                              className="text-[11px] md:text-xs font-medium text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 border-[0.5px] border-red-500/30 rounded-full px-3 py-2 transition-all focus:outline-none"
+                            >
+                              {isResetting ? "Resetting..." : "Reset"}
+                            </button>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-gray-500 dark:text-white/30 leading-tight px-1 italic">
+                          Tokens are encrypted and stored in your D1 database. Ensure your token has{" "}
+                          <strong>Workers AI Read</strong> permissions.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </section>
+              )}
+
+              {activeTab === "prompt" && (
+                <section className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  <h3 className="text-[11px] md:text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-white/40 mb-4">
+                    System Prompt
+                  </h3>
+                  <div className="space-y-4">
                     <textarea
                       value={draftSystemPrompt}
                       onChange={(e) => setDraftSystemPrompt(e.target.value)}
                       placeholder="You are a helpful assistant..."
-                      rows={10}
-                      className="w-full text-base md:text-sm bg-black/5 dark:bg-black/20 border-[0.5px] border-black/10 dark:border-white/10 rounded-xl px-3 py-2.5 text-gray-900 dark:text-white/95 placeholder:text-gray-400 dark:placeholder:text-white/30 outline-none focus:border-[#0A84FF] focus:bg-white dark:focus:bg-black/30 transition-colors resize-none [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-black/10 dark:[&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full"
+                      rows={12}
+                      className="w-full text-base md:text-sm bg-black/5 dark:bg-black/20 border-[0.5px] border-black/10 dark:border-white/10 rounded-xl px-4 py-3 text-gray-900 dark:text-white/95 placeholder:text-gray-400 dark:placeholder:text-white/30 outline-none focus:border-[#0A84FF] focus:bg-white dark:focus:bg-black/30 transition-colors resize-none [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-black/10 dark:[&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full"
                     />
-                    <p className="mt-1.5 text-xs text-gray-500 dark:text-white/40">
-                      Applied to all new conversations.
+                    <p className="text-xs text-gray-500 dark:text-white/40 leading-relaxed italic">
+                      This instructions are applied to the start of all new conversations to define
+                      the AI's personality and behavior.
                     </p>
                   </div>
-                </div>
-              </section>
-            </div>
+                </section>
+              )}
 
-            {/* Vertical Divider */}
-            <div className="hidden md:block w-[1px] bg-black/10 dark:bg-white/10 shrink-0" />
-
-            {/* Right Column: Model, Conversations & Data Management */}
-            <div className="flex-1 space-y-8">
-              {/* Default Model */}
-              <section>
-                <h3 className="text-[11px] md:text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-white/40 mb-4">
-                  Default Model
-                </h3>
-                <div className="w-full bg-black/5 dark:bg-black/20 border-[0.5px] border-black/10 dark:border-white/10 rounded-xl px-3 py-2.5 focus-within:border-[#0A84FF] focus-within:bg-white dark:focus-within:bg-black/30 transition-colors">
-                  <ModelPicker
-                    models={models}
-                    value={draftModel}
-                    onChange={setDraftModel}
-                    className="w-full"
-                  />
-                </div>
-                <p className="mt-1.5 text-xs text-gray-500 dark:text-white/40">
-                  Fallback for existing chats and default for new ones.
-                </p>
-              </section>
-
-              {/* Conversations */}
-              <section>
-                <h3 className="text-[11px] md:text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-white/40 mb-4">
-                  Conversations
-                </h3>
-                <div className="space-y-3">
-                  {/* Cloud */}
-                  <div className="flex items-center justify-between py-3 px-4 rounded-xl bg-white/60 dark:bg-white/5 border-[0.5px] border-black/10 dark:border-white/10">
-                    <div>
-                      <p className="text-[13px] md:text-sm font-medium text-gray-900 dark:text-white/95">
-                        Cloud (D1)
-                      </p>
-                      <p className="text-[11px] md:text-xs text-gray-500 dark:text-white/40 mt-0.5">
-                        Stored in Cloudflare D1
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => {
-                        if (confirm("Delete all cloud conversations? This cannot be undone.")) {
-                          onClearConversations("cloud");
-                        }
-                      }}
-                      className="text-[11px] md:text-xs font-medium text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 border-[0.5px] border-red-500/30 hover:bg-red-50 dark:hover:bg-red-500/20 rounded-full px-3 py-1.5 transition-all focus:outline-none"
-                    >
-                      Clear
-                    </button>
-                  </div>
-
-                  {/* Local */}
-                  <div className="flex items-center justify-between py-3 px-4 rounded-xl bg-white/60 dark:bg-white/5 border-[0.5px] border-black/10 dark:border-white/10">
-                    <div>
-                      <p className="text-[13px] md:text-sm font-medium text-gray-900 dark:text-white/95">
-                        Local (Browser)
-                      </p>
-                      <p className="text-[11px] md:text-xs text-gray-500 dark:text-white/40 mt-0.5">
-                        Stored in browser localStorage
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => {
-                        if (confirm("Delete all local conversations? This cannot be undone.")) {
-                          onClearConversations("local");
-                        }
-                      }}
-                      className="text-[11px] md:text-xs font-medium text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 border-[0.5px] border-red-500/30 hover:bg-red-50 dark:hover:bg-red-500/20 rounded-full px-3 py-1.5 transition-all focus:outline-none"
-                    >
-                      Clear
-                    </button>
-                  </div>
-                </div>
-              </section>
-
-              {/* Cloudflare AI Configuration */}
-              <section>
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-[11px] md:text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-white/40">
-                    Cloudflare AI
-                  </h3>
-                  {secretsStatus.hasToken && (
-                    <span className="flex items-center gap-1 text-[10px] font-bold text-green-500 uppercase tracking-tighter bg-green-500/10 px-1.5 py-0.5 rounded">
-                      <div className="w-1 h-1 rounded-full bg-green-500 animate-pulse"></div>
-                      Connected
-                    </span>
-                  )}
-                </div>
-
-                {!secretsStatus.isConfigurable ? (
-                  <div className="flex items-center justify-between py-2 px-1 mb-2">
-                    <div className="flex items-center gap-2 text-red-500 dark:text-red-400">
-                      <svg
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        className="w-4 h-4 stroke-[2.5]"
-                      >
-                        <path
-                          d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                      <p className="text-[13px] font-medium tracking-tight">
-                        SECRET_KEY is not configured.
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => setShowKeyGuideModal(true)}
-                      className="text-[12px] font-semibold text-gray-500 hover:text-gray-900 dark:text-white/40 dark:hover:text-white/90 transition-colors focus:outline-none"
-                    >
-                      How to fix this →
-                    </button>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between ml-1">
-                        <label className="block text-[11px] font-medium text-gray-500 dark:text-white/40">
-                          Account ID
-                        </label>
+              {activeTab === "data" && (
+                <section className="space-y-10 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  {/* Conversations */}
+                  <div>
+                    <h3 className="text-[11px] md:text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-white/40 mb-4">
+                      Conversations
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Cloud */}
+                      <div className="flex items-center justify-between py-3 px-4 rounded-xl bg-white/60 dark:bg-white/5 border-[0.5px] border-black/10 dark:border-white/10">
+                        <div>
+                          <p className="text-[13px] md:text-sm font-medium text-gray-900 dark:text-white/95">
+                            Cloud (D1)
+                          </p>
+                          <p className="text-[11px] md:text-xs text-gray-500 dark:text-white/40 mt-0.5">
+                            Saved to Cloudflare
+                          </p>
+                        </div>
                         <button
-                          onClick={() => setShowAccountHelp(true)}
-                          className="text-[10px] font-semibold text-[#0A84FF] hover:underline"
+                          onClick={() => {
+                            if (confirm("Delete all cloud conversations? This cannot be undone.")) {
+                              onClearConversations("cloud");
+                            }
+                          }}
+                          className="text-[11px] md:text-xs font-medium text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 border-[0.5px] border-red-500/30 hover:bg-red-50 dark:hover:bg-red-500/20 rounded-full px-3 py-1.5 transition-all focus:outline-none"
                         >
-                          Where do I find this?
+                          Clear
                         </button>
                       </div>
-                      <input
-                        type="text"
-                        value={cfAccountId}
-                        onChange={(e) => setCfAccountId(e.target.value)}
-                        placeholder={secretsStatus.accountId || "Your Cloudflare Account ID"}
-                        className="w-full text-[13px] bg-black/5 dark:bg-black/20 border-[0.5px] border-black/10 dark:border-white/10 rounded-xl px-3 py-2 text-gray-900 dark:text-white/95 placeholder:text-gray-400 dark:placeholder:text-white/30 outline-none focus:border-[#0A84FF] transition-colors"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between ml-1">
-                        <label className="block text-[11px] font-medium text-gray-500 dark:text-white/40">
-                          API Token (Workers AI Read)
-                        </label>
-                        <button
-                          onClick={() => setShowTokenHelp(true)}
-                          className="text-[10px] font-semibold text-[#0A84FF] hover:underline"
-                        >
-                          How to create this?
-                        </button>
-                      </div>
-                      <input
-                        type="password"
-                        value={cfApiToken}
-                        onChange={(e) => setCfApiToken(e.target.value)}
-                        placeholder={secretsStatus.hasToken ? "••••••••••••••••" : "Your API Token"}
-                        className="w-full text-[13px] bg-black/5 dark:bg-black/20 border-[0.5px] border-black/10 dark:border-white/10 rounded-xl px-3 py-2 text-gray-900 dark:text-white/95 placeholder:text-gray-400 dark:placeholder:text-white/30 outline-none focus:border-[#0A84FF] transition-colors"
-                      />
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={handleConnect}
-                        disabled={isConnecting || !cfAccountId || !cfApiToken}
-                        className="flex-1 text-[11px] md:text-xs font-medium text-white bg-[#0A84FF] hover:bg-[#0070E0] disabled:opacity-50 disabled:bg-gray-400 rounded-full px-3 py-2 transition-all focus:outline-none"
-                      >
-                        {isConnecting
-                          ? "Validating..."
-                          : secretsStatus.hasToken
-                            ? "Update Credentials"
-                            : "Connect & Refresh"}
-                      </button>
-                      {secretsStatus.hasToken && (
-                        <button
-                          onClick={handleReset}
-                          disabled={isResetting}
-                          className="text-[11px] md:text-xs font-medium text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 border-[0.5px] border-red-500/30 rounded-full px-3 py-2 transition-all focus:outline-none"
-                        >
-                          {isResetting ? "Resetting..." : "Reset"}
-                        </button>
-                      )}
-                    </div>
-                    <p className="text-[10px] text-gray-500 dark:text-white/30 leading-tight px-1">
-                      Tokens are encrypted and stored in your D1 database. Ensure your token has{" "}
-                      <strong>Workers AI Read</strong> permissions.
-                    </p>
-                  </div>
-                )}
-              </section>
 
-              {/* Data Management */}
-              <section>
-                <h3 className="text-[11px] md:text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-white/40 mb-4">
-                  Data Management
-                </h3>
-                <div className="space-y-3">
-                  <div className="flex flex-col py-3 px-4 rounded-xl bg-white/60 dark:bg-white/5 border-[0.5px] border-black/10 dark:border-white/10">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-[13px] md:text-sm font-medium text-gray-900 dark:text-white/95">
-                          Export Workspace
-                        </p>
-                        <p className="text-[11px] md:text-xs text-gray-500 dark:text-white/40 mt-0.5">
-                          Download all data as a ZIP file
-                        </p>
+                      {/* Local */}
+                      <div className="flex items-center justify-between py-3 px-4 rounded-xl bg-white/60 dark:bg-white/5 border-[0.5px] border-black/10 dark:border-white/10">
+                        <div>
+                          <p className="text-[13px] md:text-sm font-medium text-gray-900 dark:text-white/95">
+                            Local (Browser)
+                          </p>
+                          <p className="text-[11px] md:text-xs text-gray-500 dark:text-white/40 mt-0.5">
+                            Saved on device
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => {
+                            if (confirm("Delete all local conversations? This cannot be undone.")) {
+                              onClearConversations("local");
+                            }
+                          }}
+                          className="text-[11px] md:text-xs font-medium text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 border-[0.5px] border-red-500/30 hover:bg-red-50 dark:hover:bg-red-500/20 rounded-full px-3 py-1.5 transition-all focus:outline-none"
+                        >
+                          Clear
+                        </button>
                       </div>
-                      <button
-                        onClick={handleExportClick}
-                        disabled={isExporting || importProgress !== null}
-                        className="text-[11px] md:text-xs font-medium text-gray-700 dark:text-white/80 hover:text-gray-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 border-[0.5px] border-black/10 dark:border-white/20 rounded-full px-3 py-1.5 transition-all focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {isExporting ? "Exporting..." : "Export"}
-                      </button>
                     </div>
-                    {showExportSelector && (
-                      <div className="mt-4 pt-3 border-t-[0.5px] border-black/5 dark:border-white/10">
-                        <p className="text-xs text-gray-700 dark:text-white/80 font-medium mb-3">
-                          Select export scope:
-                        </p>
-                        <div className="flex flex-col gap-2">
-                          {(["local", "cloud", "both"] as const).map((scope) => (
-                            <label
-                              key={scope}
-                              className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors ${
-                                exportScope === scope
-                                  ? "bg-black/5 dark:bg-white/10"
-                                  : "hover:bg-black/5 dark:hover:bg-white/5"
-                              }`}
-                            >
-                              <input
-                                type="radio"
-                                name="exportScope"
-                                value={scope}
-                                checked={exportScope === scope}
-                                onChange={() => setExportScope(scope)}
-                                className="w-3.5 h-3.5 accent-blue-500"
-                              />
-                              <span className="text-xs text-gray-900 dark:text-white/95">
-                                {scope === "local"
-                                  ? "Local Only"
-                                  : scope === "cloud"
-                                    ? "Cloud Only"
-                                    : "Both (Local & Cloud)"}
-                              </span>
-                            </label>
-                          ))}
-                          <div className="flex justify-end gap-2 mt-2">
+                  </div>
+
+                  {/* Data Management */}
+                  <div>
+                    <h3 className="text-[11px] md:text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-white/40 mb-4">
+                      Import / Export
+                    </h3>
+                    <div className="space-y-4">
+                      {/* Export */}
+                      <div className="flex flex-col py-3 px-4 rounded-xl bg-white/60 dark:bg-white/5 border-[0.5px] border-black/10 dark:border-white/10">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-[13px] md:text-sm font-medium text-gray-900 dark:text-white/95">
+                              Export Workspace
+                            </p>
+                            <p className="text-[11px] md:text-xs text-gray-500 dark:text-white/40 mt-0.5">
+                              Download everything as ZIP
+                            </p>
+                          </div>
+                          <button
+                            onClick={handleExportClick}
+                            disabled={isExporting || importProgress !== null}
+                            className="text-[11px] md:text-xs font-medium text-gray-700 dark:text-white/80 hover:text-gray-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 border-[0.5px] border-black/10 dark:border-white/20 rounded-full px-4 py-1.5 transition-all focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {isExporting ? "Exporting..." : "Export"}
+                          </button>
+                        </div>
+                        {showExportSelector && (
+                          <div className="mt-4 pt-3 border-t-[0.5px] border-black/5 dark:border-white/10">
+                            <p className="text-xs text-gray-700 dark:text-white/80 font-medium mb-3">
+                              Select export scope:
+                            </p>
+                            <div className="flex flex-col gap-2">
+                              {(["local", "cloud", "both"] as const).map((scope) => (
+                                <label
+                                  key={scope}
+                                  className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors ${
+                                    exportScope === scope
+                                      ? "bg-black/5 dark:bg-white/10"
+                                      : "hover:bg-black/5 dark:hover:bg-white/5"
+                                  }`}
+                                >
+                                  <input
+                                    type="radio"
+                                    name="exportScope"
+                                    value={scope}
+                                    checked={exportScope === scope}
+                                    onChange={() => setExportScope(scope)}
+                                    className="w-3.5 h-3.5 accent-blue-500"
+                                  />
+                                  <span className="text-xs text-gray-900 dark:text-white/95">
+                                    {scope === "local"
+                                      ? "Local Only"
+                                      : scope === "cloud"
+                                        ? "Cloud Only"
+                                        : "Both (Local & Cloud)"}
+                                  </span>
+                                </label>
+                              ))}
+                              <div className="flex justify-end gap-2 mt-2">
+                                <button
+                                  onClick={confirmExport}
+                                  className="text-[11px] md:text-xs font-medium text-white bg-blue-500 hover:bg-blue-600 rounded-full px-3 py-1 transition-colors"
+                                >
+                                  Confirm Export
+                                </button>
+                                <button
+                                  onClick={() => setShowExportSelector(false)}
+                                  className="text-[11px] md:text-xs font-medium text-gray-700 dark:text-white/80 hover:bg-black/5 dark:hover:bg-white/10 rounded-full px-3 py-1 transition-colors"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Import */}
+                      <div className="flex flex-col py-3 px-4 rounded-xl bg-white/60 dark:bg-white/5 border-[0.5px] border-black/10 dark:border-white/10">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-[13px] md:text-sm font-medium text-gray-900 dark:text-white/95">
+                              Import Workspace
+                            </p>
+                            <p className="text-[11px] md:text-xs text-gray-500 dark:text-white/40 mt-0.5">
+                              Restore from ZIP backup
+                            </p>
+                          </div>
+                          <div>
+                            <input
+                              type="file"
+                              accept=".zip"
+                              className="hidden"
+                              ref={fileInputRef}
+                              onChange={handleFileChange}
+                            />
                             <button
-                              onClick={confirmExport}
-                              className="text-[11px] md:text-xs font-medium text-white bg-blue-500 hover:bg-blue-600 rounded-full px-3 py-1 transition-colors"
+                              onClick={() => fileInputRef.current?.click()}
+                              disabled={isExporting || importProgress !== null}
+                              className="text-[11px] md:text-xs font-medium text-gray-700 dark:text-white/80 hover:text-gray-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 border-[0.5px] border-black/10 dark:border-white/20 rounded-full px-4 py-1.5 transition-all focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                              Confirm Export
-                            </button>
-                            <button
-                              onClick={() => setShowExportSelector(false)}
-                              className="text-[11px] md:text-xs font-medium text-gray-700 dark:text-white/80 hover:bg-black/5 dark:hover:bg-white/10 rounded-full px-3 py-1 transition-colors"
-                            >
-                              Cancel
+                              Import
                             </button>
                           </div>
                         </div>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex flex-col py-3 px-4 rounded-xl bg-white/60 dark:bg-white/5 border-[0.5px] border-black/10 dark:border-white/10">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-[13px] md:text-sm font-medium text-gray-900 dark:text-white/95">
-                          Import Workspace
-                        </p>
-                        <p className="text-[11px] md:text-xs text-gray-500 dark:text-white/40 mt-0.5">
-                          Restore from WaiChat or ChatGPT ZIP
-                        </p>
-                      </div>
-                      <div>
-                        <input
-                          type="file"
-                          accept=".zip"
-                          className="hidden"
-                          ref={fileInputRef}
-                          onChange={handleFileChange}
-                        />
-                        <button
-                          onClick={() => fileInputRef.current?.click()}
-                          disabled={isExporting || importProgress !== null}
-                          className="text-[11px] md:text-xs font-medium text-gray-700 dark:text-white/80 hover:text-gray-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 border-[0.5px] border-black/10 dark:border-white/20 rounded-full px-3 py-1.5 transition-all focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          Import
-                        </button>
+                        {importProgress && (
+                          <div className="mt-3">
+                            <p className="text-[11px] md:text-xs text-[#0A84FF] font-medium animate-pulse">
+                              {importProgress}
+                            </p>
+                          </div>
+                        )}
+                        {showImportConfirm && (
+                          <div className="mt-3 p-3 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-lg">
+                            <p className="text-xs text-red-600 dark:text-red-400 font-medium mb-2">
+                              This will overwrite any existing conversations with matching IDs.
+                              Continue?
+                            </p>
+                            <div className="flex justify-end gap-2">
+                              <button
+                                onClick={confirmImport}
+                                className="text-[11px] md:text-xs font-medium text-white bg-red-500 hover:bg-red-600 rounded-full px-3 py-1 transition-colors"
+                              >
+                                Yes, Import
+                              </button>
+                              <button
+                                onClick={cancelImport}
+                                className="text-[11px] md:text-xs font-medium text-gray-700 dark:text-white/80 hover:bg-black/5 dark:hover:bg-white/10 rounded-full px-3 py-1 transition-colors"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
-                    {importProgress && (
-                      <div className="mt-3">
-                        <p className="text-[11px] md:text-xs text-[#0A84FF] font-medium animate-pulse">
-                          {importProgress}
-                        </p>
-                      </div>
-                    )}
-                    {showImportConfirm && (
-                      <div className="mt-3 p-3 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-lg">
-                        <p className="text-xs text-red-600 dark:text-red-400 font-medium mb-2">
-                          This will overwrite any existing conversations with matching IDs.
-                          Continue?
-                        </p>
-                        <div className="flex justify-end gap-2">
-                          <button
-                            onClick={confirmImport}
-                            className="text-[11px] md:text-xs font-medium text-white bg-red-500 hover:bg-red-600 rounded-full px-3 py-1 transition-colors"
-                          >
-                            Yes, Import
-                          </button>
-                          <button
-                            onClick={cancelImport}
-                            className="text-[11px] md:text-xs font-medium text-gray-700 dark:text-white/80 hover:bg-black/5 dark:hover:bg-white/10 rounded-full px-3 py-1 transition-colors"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </div>
-                    )}
                   </div>
-                </div>
-              </section>
+                </section>
+              )}
             </div>
           </div>
         </div>
