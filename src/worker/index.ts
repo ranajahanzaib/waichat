@@ -17,10 +17,10 @@ import {
   updateConversationTimestamp,
   updateConversationTitle,
 } from "./db";
-import type { ChatRequest, Env } from "./types";
+import type { ChatRequest, Env, Model } from "./types";
 
 // Isolate-specific in-memory cache for models
-let modelCache: { data: any[]; timestamp: number } | null = null;
+let modelCache: { data: Model[]; timestamp: number } | null = null;
 const CACHE_TTL = 60 * 60 * 1000; // 1 hour
 
 function scoreModel(id: string): number {
@@ -104,7 +104,7 @@ function formatModelName(id: string): string {
   return prefix ? `${prefix} ${formattedSlug}` : formattedSlug;
 }
 
-async function fetchDynamicModels(accountId: string, apiToken: string): Promise<any[]> {
+async function fetchDynamicModels(accountId: string, apiToken: string): Promise<Model[]> {
   const res = await fetch(
     `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/models/search?task=Text+Generation&per_page=100`,
     {

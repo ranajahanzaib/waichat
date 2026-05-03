@@ -26,6 +26,11 @@ export interface Message {
   deleted_at?: number;
 }
 
+export interface Model {
+  id: string;
+  name: string;
+}
+
 export interface ChatRequest {
   conversation_id: string;
   model: string;
