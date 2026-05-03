@@ -150,16 +150,29 @@ app.get("/api/conversations", async (c) => {
 app.get("/api/export", async (c) => {
   try {
     const db = c.env.DB;
-    // Fetch all records from the database
-    const { results: conversations } = await db
-      .prepare("SELECT id, title, model, created_at, updated_at FROM conversations")
-      .all();
-    const { results: messages } = await db
-      .prepare(
-        "SELECT id, conversation_id, role, content, created_at, model, parent_id FROM messages WHERE deleted_at IS NULL",
-      )
-      .all();
-    const { results: settingsRaw } = await db.prepare("SELECT key, value FROM settings").all();
+
+    // Helper to fetch all rows using pagination (bypass 10k limit)
+    const fetchAll = async (query: string) => {
+      const results: any[] = [];
+      const LIMIT = 10000;
+      let offset = 0;
+      while (true) {
+        const batch = await db.prepare(`${query} LIMIT ${LIMIT} OFFSET ${offset}`).all();
+        if (!batch.results || batch.results.length === 0) break;
+        results.push(...batch.results);
+        if (batch.results.length < LIMIT) break;
+        offset += LIMIT;
+      }
+      return results;
+    };
+
+    const conversations = await fetchAll(
+      "SELECT id, title, model, created_at, updated_at FROM conversations",
+    );
+    const messages = await fetchAll(
+      "SELECT id, conversation_id, role, content, created_at, model, parent_id FROM messages WHERE deleted_at IS NULL",
+    );
+    const settingsRaw = await fetchAll("SELECT key, value FROM settings");
 
     // Reformat settings into a simple key-value object
     const settings: Record<string, string> = {};

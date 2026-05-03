@@ -421,9 +421,18 @@ export default function App() {
       if (scope === "local" || scope === "both") {
         const currentStorage = createStorage("local");
         const conversations = await currentStorage.getConversations();
-        const messages = (
-          await Promise.all(conversations.map((conv) => currentStorage.getConversation(conv.id)))
-        ).flatMap((data) => data?.messages || []);
+
+        // Fetch conversation details in batches to avoid overwhelming the adapter
+        const messages: Message[] = [];
+        const BATCH_SIZE = 10;
+        for (let i = 0; i < conversations.length; i += BATCH_SIZE) {
+          const chunk = conversations.slice(i, i + BATCH_SIZE);
+          const results = await Promise.all(chunk.map((c) => currentStorage.getConversation(c.id)));
+          results.forEach((data) => {
+            if (data) messages.push(...data.messages);
+          });
+        }
+
         exportData.local = { conversations, messages };
       }
 
@@ -506,6 +515,16 @@ export default function App() {
           data.external.messages,
           "Importing",
         );
+      }
+
+      // Apply imported settings if they exist
+      if (data.settings) {
+        if (data.settings.system_prompt) {
+          await handleSystemPromptChange(data.settings.system_prompt, syncSettings);
+        }
+        if (data.settings.default_model) {
+          await handleDefaultModelChange(data.settings.default_model, syncSettings);
+        }
       }
 
       await loadConversations();

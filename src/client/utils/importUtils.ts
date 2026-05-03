@@ -2,7 +2,7 @@ import { strFromU8, unzipSync } from "fflate";
 import type { Conversation, Message } from "../storage";
 
 const MAX_COMPRESSED_SIZE = 50 * 1024 * 1024; // 50MB
-const MAX_UNCOMPRESSED_SIZE = 500 * 1024 * 1024; // 500MB
+const MAX_UNCOMPRESSED_SIZE = 100 * 1024 * 1024; // 100MB
 
 export interface ImportResult {
   scope: "local" | "cloud" | "both" | "external";
