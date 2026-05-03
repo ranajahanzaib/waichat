@@ -563,12 +563,12 @@ export default function MessageList({
                   <span className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-white/40">
                     You
                   </span>
-                  <div className="w-6 h-6 rounded-full bg-black dark:bg-white flex items-center justify-center">
+                  <div className="w-6 h-6 rounded-full bg-black/5 dark:bg-white/10 flex items-center justify-center">
                     <svg
                       viewBox="0 0 24 24"
                       fill="none"
                       stroke="currentColor"
-                      className="w-3.5 h-3.5 stroke-[2.5] text-white dark:text-black"
+                      className="w-3.5 h-3.5 stroke-[2.5] text-gray-500 dark:text-white/80"
                     >
                       <path
                         strokeLinecap="round"
@@ -608,7 +608,7 @@ export default function MessageList({
                           setEditingId(null);
                         }}
                         disabled={!editContent.trim() || editContent.trim() === m.content}
-                        className="px-4 py-1.5 rounded-full text-sm font-medium bg-black text-white hover:bg-gray-800 dark:bg-white dark:text-black dark:hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        className="px-4 py-1.5 rounded-full text-sm font-medium bg-black/5 dark:bg-white/10 text-gray-600 dark:text-white/80 hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black disabled:opacity-50 disabled:hover:bg-black/5 disabled:hover:text-gray-600 dark:disabled:hover:bg-white/10 dark:disabled:hover:text-white/80 disabled:cursor-not-allowed transition-all duration-200"
                       >
                         Save & Submit
                       </button>
