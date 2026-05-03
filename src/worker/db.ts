@@ -228,17 +228,14 @@ export async function encrypt(text: string, secretKey: string): Promise<string> 
   combined.set(iv);
   combined.set(new Uint8Array(encrypted), iv.length);
 
-  // Use a modern approach for base64 in Workers
-  return btoa(String.fromCharCode(...combined));
+  // Use a modern approach for base64 in Workers, avoiding stack overflow for larger inputs
+  return btoa(Array.from(combined, (b) => String.fromCharCode(b)).join(""));
 }
 
 export async function decrypt(encryptedBase64: string, secretKey: string): Promise<string> {
   const key = await getCryptoKey(secretKey);
-  const combined = new Uint8Array(
-    atob(encryptedBase64)
-      .split("")
-      .map((c) => c.charCodeAt(0)),
-  );
+  const binString = atob(encryptedBase64);
+  const combined = Uint8Array.from(binString, (c) => c.charCodeAt(0));
   const iv = combined.slice(0, 12);
   const data = combined.slice(12);
 
@@ -251,7 +248,8 @@ export async function getSecret(
   key: string,
   secretKey?: string,
 ): Promise<string | null> {
-  if (!secretKey) throw new Error("SECRET_KEY is missing");
+  if (!secretKey)
+    throw new Error("Encryption key (SECRET_KEY) is not configured in environment variables");
   const encrypted = await getSetting(db, key);
   if (!encrypted) return null;
   try {
@@ -268,7 +266,8 @@ export async function setSecret(
   value: string,
   secretKey?: string,
 ): Promise<void> {
-  if (!secretKey) throw new Error("SECRET_KEY is missing");
+  if (!secretKey)
+    throw new Error("Encryption key (SECRET_KEY) is not configured in environment variables");
   const encrypted = await encrypt(value, secretKey);
   await setSetting(db, key, encrypted);
 }

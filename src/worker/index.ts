@@ -114,7 +114,10 @@ async function fetchDynamicModels(accountId: string, apiToken: string): Promise<
     },
   );
 
-  if (!res.ok) throw new Error(`Cloudflare API error: ${res.status}`);
+  if (!res.ok) {
+    const errorData = (await res.json().catch(() => ({}))) as any;
+    throw new Error(errorData.errors?.[0]?.message || `Cloudflare API error: ${res.status}`);
+  }
 
   const data = (await res.json()) as {
     result: {
@@ -124,7 +127,12 @@ async function fetchDynamicModels(accountId: string, apiToken: string): Promise<
       task: { name: string };
     }[];
     success: boolean;
+    errors?: { message: string }[];
   };
+
+  if (!data.success) {
+    throw new Error(data.errors?.[0]?.message || "Cloudflare API request failed");
+  }
 
   return data.result
     .map((m) => ({ id: m.name, name: formatModelName(m.name) }))
@@ -154,10 +162,8 @@ app.get("/api/models", async (c) => {
         getSecret(c.env.DB, "cf_account_id", c.env.SECRET_KEY),
         getSecret(c.env.DB, "cf_api_token", c.env.SECRET_KEY),
       ]);
-      if (d1AccountId && d1ApiToken) {
-        accountId = d1AccountId;
-        apiToken = d1ApiToken;
-      }
+      accountId = accountId || d1AccountId || undefined;
+      apiToken = apiToken || d1ApiToken || undefined;
     } catch (e) {
       console.error("[/api/models] Error resolving D1 secrets:", e);
     }
