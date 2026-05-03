@@ -7,7 +7,10 @@ import Sidebar from "./components/Sidebar";
 import { useChat } from "./hooks/useChat";
 import { DEFAULT_MODEL_ID, useModels } from "./hooks/useModels";
 import { useTransfer } from "./hooks/useTransfer";
-import type { StorageMode } from "./storage";
+import type { Conversation, Message, StorageMode } from "./storage";
+import { createStorage } from "./storage";
+import { exportWorkspace } from "./utils/exportUtils";
+import { parseImportFile } from "./utils/importUtils";
 
 const STORAGE_MODE_KEY = "waichat:storage-mode";
 const SYSTEM_PROMPT_KEY = "waichat:system-prompt";
@@ -389,6 +392,115 @@ export default function App() {
     }
   };
 
+  const handleExportWorkspace = async (scope: "local" | "cloud" | "both") => {
+    try {
+      const exportData: {
+        local?: { conversations: Conversation[]; messages: Message[] };
+        cloud?: { conversations: Conversation[]; messages: Message[] };
+        settings: Record<string, string>;
+      } = {
+        settings: {
+          system_prompt: localStorage.getItem(SYSTEM_PROMPT_KEY) || "",
+          default_model: localStorage.getItem(DEFAULT_MODEL_KEY) || "",
+        },
+      };
+
+      if (scope === "cloud" || scope === "both") {
+        const res = await fetch("/api/export");
+        if (!res.ok) throw new Error("Failed to export from cloud");
+        const cloudData = (await res.json()) as {
+          conversations: Conversation[];
+          messages: Message[];
+        };
+        exportData.cloud = { conversations: cloudData.conversations, messages: cloudData.messages };
+      }
+
+      if (scope === "local" || scope === "both") {
+        const currentStorage = createStorage("local");
+        const conversations = await currentStorage.getConversations();
+        const messages: Message[] = [];
+        for (const conv of conversations) {
+          const data = await currentStorage.getConversation(conv.id);
+          if (data) messages.push(...data.messages);
+        }
+        exportData.local = { conversations, messages };
+      }
+
+      await exportWorkspace(scope, exportData);
+    } catch (e) {
+      console.error(e);
+      alert("Failed to export workspace");
+    }
+  };
+
+  const handleImportWorkspace = async (file: File, onProgress: (msg: string) => void) => {
+    try {
+      const data = await parseImportFile(file);
+
+      const importToMode = async (
+        mode: StorageMode,
+        convs: Conversation[],
+        msgs: Message[],
+        prefix: string,
+      ) => {
+        const adapter = createStorage(mode);
+        const total = convs.length;
+        for (let i = 0; i < total; i++) {
+          const conv = convs[i];
+          const convMessages = msgs.filter((m) => m.conversation_id === conv.id);
+          onProgress(`${prefix} ${i + 1}/${total}...`);
+          try {
+            await adapter.deleteConversation(conv.id);
+          } catch (e) {}
+          await adapter.importConversation(conv, convMessages);
+        }
+      };
+
+      if (data.scope === "both") {
+        if (data.local)
+          await importToMode(
+            "local",
+            data.local.conversations,
+            data.local.messages,
+            "Importing Local",
+          );
+        if (data.cloud)
+          await importToMode(
+            "cloud",
+            data.cloud.conversations,
+            data.cloud.messages,
+            "Importing Cloud",
+          );
+      } else if (data.scope === "local" && data.local) {
+        await importToMode(
+          "local",
+          data.local.conversations,
+          data.local.messages,
+          "Importing Local",
+        );
+      } else if (data.scope === "cloud" && data.cloud) {
+        await importToMode(
+          "cloud",
+          data.cloud.conversations,
+          data.cloud.messages,
+          "Importing Cloud",
+        );
+      } else if (data.scope === "external" && data.external) {
+        await importToMode(
+          storageMode,
+          data.external.conversations,
+          data.external.messages,
+          "Importing",
+        );
+      }
+
+      await loadConversations();
+    } catch (e: any) {
+      console.error(e);
+      throw e;
+    }
+  };
+
   return (
     <div className="relative flex h-screen w-full overflow-hidden font-sans text-gray-900 dark:text-white/95">
       {/* Full-screen base layers */}
@@ -613,6 +725,8 @@ export default function App() {
           onSystemPromptChange={handleSystemPromptChange}
           models={models}
           onClearConversations={handleClearConversations}
+          onExportWorkspace={handleExportWorkspace}
+          onImportWorkspace={handleImportWorkspace}
           theme={theme}
           onThemeChange={setTheme}
         />

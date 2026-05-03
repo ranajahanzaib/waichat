@@ -15,6 +15,8 @@ interface SettingsModalProps {
   onSystemPromptChange: (prompt: string, sync: boolean) => void;
   models: Model[];
   onClearConversations: (mode: StorageMode) => void;
+  onExportWorkspace: (scope: "local" | "cloud" | "both") => Promise<void>;
+  onImportWorkspace: (file: File, onProgress: (msg: string) => void) => Promise<void>;
   theme: "system" | "light" | "dark";
   onThemeChange: (theme: "system" | "light" | "dark") => void;
 }
@@ -31,16 +33,25 @@ export default function SettingsModal({
   onSystemPromptChange,
   models,
   onClearConversations,
+  onExportWorkspace,
+  onImportWorkspace,
   theme,
   onThemeChange,
 }: SettingsModalProps) {
   const overlayRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Local draft state — only committed on Save
   const [draftStorageMode, setDraftStorageMode] = useState<StorageMode>(storageMode);
   const [draftModel, setDraftModel] = useState(defaultModel);
   const [draftSystemPrompt, setDraftSystemPrompt] = useState(systemPrompt);
   const [draftSyncSettings, setDraftSyncSettings] = useState(syncSettings);
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportScope, setExportScope] = useState<"local" | "cloud" | "both">("both");
+  const [showExportSelector, setShowExportSelector] = useState(false);
+  const [importProgress, setImportProgress] = useState<string | null>(null);
+  const [showImportConfirm, setShowImportConfirm] = useState(false);
+  const [pendingImportFile, setPendingImportFile] = useState<File | null>(null);
 
   // Sync draft with props when modal opens
   useEffect(() => {
@@ -71,6 +82,52 @@ export default function SettingsModal({
 
   const handleCancel = () => {
     onClose();
+  };
+
+  const handleExportClick = () => {
+    setShowExportSelector(true);
+  };
+
+  const confirmExport = async () => {
+    setShowExportSelector(false);
+    setIsExporting(true);
+    try {
+      await onExportWorkspace(exportScope);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setPendingImportFile(file);
+      setShowImportConfirm(true);
+    }
+    // Reset input so the same file can be selected again
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  const confirmImport = async () => {
+    if (!pendingImportFile) return;
+    setShowImportConfirm(false);
+    setImportProgress("Starting import...");
+    try {
+      await onImportWorkspace(pendingImportFile, setImportProgress);
+      setImportProgress(null);
+      setPendingImportFile(null);
+      alert("Workspace imported successfully!");
+    } catch (e: any) {
+      setImportProgress(null);
+      setPendingImportFile(null);
+    }
+  };
+
+  const cancelImport = () => {
+    setShowImportConfirm(false);
+    setPendingImportFile(null);
   };
 
   return (
@@ -258,6 +315,140 @@ export default function SettingsModal({
                 >
                   Clear
                 </button>
+              </div>
+            </div>
+          </section>
+
+          {/* Data Management */}
+          <section>
+            <h3 className="text-[11px] md:text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-white/40 mb-4">
+              Data Management
+            </h3>
+            <div className="space-y-3">
+              <div className="flex flex-col py-3 px-4 rounded-xl bg-white/60 dark:bg-white/5 border-[0.5px] border-black/10 dark:border-white/10">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[13px] md:text-sm font-medium text-gray-900 dark:text-white/95">
+                      Export Workspace
+                    </p>
+                    <p className="text-[11px] md:text-xs text-gray-500 dark:text-white/40 mt-0.5">
+                      Download all data as a ZIP file
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleExportClick}
+                    disabled={isExporting || importProgress !== null}
+                    className="text-[11px] md:text-xs font-medium text-gray-700 dark:text-white/80 hover:text-gray-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 border-[0.5px] border-black/10 dark:border-white/20 rounded-full px-3 py-1.5 transition-all focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isExporting ? "Exporting..." : "Export"}
+                  </button>
+                </div>
+                {showExportSelector && (
+                  <div className="mt-4 pt-3 border-t-[0.5px] border-black/5 dark:border-white/10">
+                    <p className="text-xs text-gray-700 dark:text-white/80 font-medium mb-3">
+                      Select export scope:
+                    </p>
+                    <div className="flex flex-col gap-2">
+                      {(["local", "cloud", "both"] as const).map((scope) => (
+                        <label
+                          key={scope}
+                          className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors ${
+                            exportScope === scope
+                              ? "bg-black/5 dark:bg-white/10"
+                              : "hover:bg-black/5 dark:hover:bg-white/5"
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="exportScope"
+                            value={scope}
+                            checked={exportScope === scope}
+                            onChange={() => setExportScope(scope)}
+                            className="w-3.5 h-3.5 accent-blue-500"
+                          />
+                          <span className="text-xs text-gray-900 dark:text-white/95">
+                            {scope === "local"
+                              ? "Local Only"
+                              : scope === "cloud"
+                                ? "Cloud Only"
+                                : "Both (Local & Cloud)"}
+                          </span>
+                        </label>
+                      ))}
+                      <div className="flex gap-2 mt-2">
+                        <button
+                          onClick={confirmExport}
+                          className="text-[11px] md:text-xs font-medium text-white bg-blue-500 hover:bg-blue-600 rounded-full px-3 py-1 transition-colors"
+                        >
+                          Confirm Export
+                        </button>
+                        <button
+                          onClick={() => setShowExportSelector(false)}
+                          className="text-[11px] md:text-xs font-medium text-gray-700 dark:text-white/80 hover:bg-black/5 dark:hover:bg-white/10 rounded-full px-3 py-1 transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex flex-col py-3 px-4 rounded-xl bg-white/60 dark:bg-white/5 border-[0.5px] border-black/10 dark:border-white/10">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[13px] md:text-sm font-medium text-gray-900 dark:text-white/95">
+                      Import Workspace
+                    </p>
+                    <p className="text-[11px] md:text-xs text-gray-500 dark:text-white/40 mt-0.5">
+                      Restore from WaiChat or ChatGPT ZIP
+                    </p>
+                  </div>
+                  <div>
+                    <input
+                      type="file"
+                      accept=".zip"
+                      className="hidden"
+                      ref={fileInputRef}
+                      onChange={handleFileChange}
+                    />
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isExporting || importProgress !== null}
+                      className="text-[11px] md:text-xs font-medium text-gray-700 dark:text-white/80 hover:text-gray-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 border-[0.5px] border-black/10 dark:border-white/20 rounded-full px-3 py-1.5 transition-all focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Import
+                    </button>
+                  </div>
+                </div>
+                {importProgress && (
+                  <div className="mt-3">
+                    <p className="text-[11px] md:text-xs text-[#0A84FF] font-medium animate-pulse">
+                      {importProgress}
+                    </p>
+                  </div>
+                )}
+                {showImportConfirm && (
+                  <div className="mt-3 p-3 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-lg">
+                    <p className="text-xs text-red-600 dark:text-red-400 font-medium mb-2">
+                      This will overwrite any existing conversations with matching IDs. Continue?
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={confirmImport}
+                        className="text-[11px] md:text-xs font-medium text-white bg-red-500 hover:bg-red-600 rounded-full px-3 py-1 transition-colors"
+                      >
+                        Yes, Import
+                      </button>
+                      <button
+                        onClick={cancelImport}
+                        className="text-[11px] md:text-xs font-medium text-gray-700 dark:text-white/80 hover:bg-black/5 dark:hover:bg-white/10 rounded-full px-3 py-1 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </section>

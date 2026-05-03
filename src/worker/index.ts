@@ -146,6 +146,28 @@ app.get("/api/conversations", async (c) => {
   return c.json(conversations);
 });
 
+// Export all workspace data (conversations, messages, settings)
+app.get("/api/export", async (c) => {
+  try {
+    const db = c.env.DB;
+    // Fetch all records from the database
+    const { results: conversations } = await db.prepare("SELECT * FROM conversations").all();
+    const { results: messages } = await db.prepare("SELECT * FROM messages").all();
+    const { results: settingsRaw } = await db.prepare("SELECT * FROM settings").all();
+
+    // Reformat settings into a simple key-value object
+    const settings = (settingsRaw as { key: string; value: string }[]).reduce(
+      (acc, curr) => ({ ...acc, [curr.key]: curr.value }),
+      {} as Record<string, string>,
+    );
+
+    return c.json({ conversations, messages, settings });
+  } catch (e) {
+    console.error("[GET /api/export] error:", e);
+    return c.json({ error: "Export failed" }, 500);
+  }
+});
+
 app.post("/api/conversations", async (c) => {
   const body = await c.req.json<{ model: string }>();
   const now = Date.now();
