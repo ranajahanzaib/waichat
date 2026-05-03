@@ -3,6 +3,7 @@ export interface Env {
   DB: D1Database;
   CLOUDFLARE_ACCOUNT_ID?: string;
   CLOUDFLARE_API_TOKEN?: string;
+  SECRET_KEY?: string;
 }
 
 export interface Conversation {

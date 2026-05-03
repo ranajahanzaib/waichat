@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import type { Model } from "../hooks/useModels";
 import type { StorageMode } from "../storage";
+import CloudflareHelpModal from "./CloudflareHelpModal";
 import ModelPicker from "./ModelPicker";
+import SecretKeyGuideModal from "./SecretKeyGuideModal";
 
 interface SettingsModalProps {
   open: boolean;
@@ -19,6 +21,13 @@ interface SettingsModalProps {
   onImportWorkspace: (file: File, onProgress: (msg: string) => void) => Promise<void>;
   theme: "system" | "light" | "dark";
   onThemeChange: (theme: "system" | "light" | "dark") => void;
+  refreshModels: (newModels?: Model[]) => void;
+}
+
+interface SecretsStatus {
+  accountId: string | null;
+  hasToken: boolean;
+  isConfigurable: boolean;
 }
 
 export default function SettingsModal({
@@ -37,6 +46,7 @@ export default function SettingsModal({
   onImportWorkspace,
   theme,
   onThemeChange,
+  refreshModels,
 }: SettingsModalProps) {
   const overlayRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -53,6 +63,82 @@ export default function SettingsModal({
   const [showImportConfirm, setShowImportConfirm] = useState(false);
   const [pendingImportFile, setPendingImportFile] = useState<File | null>(null);
 
+  // Cloudflare AI Secrets State
+  const [secretsStatus, setSecretsStatus] = useState<SecretsStatus>({
+    accountId: null,
+    hasToken: false,
+    isConfigurable: false,
+  });
+  const [cfAccountId, setCfAccountId] = useState("");
+  const [cfApiToken, setCfApiToken] = useState("");
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
+  const [showKeyGuideModal, setShowKeyGuideModal] = useState(false);
+  const [showAccountHelp, setShowAccountHelp] = useState(false);
+  const [showTokenHelp, setShowTokenHelp] = useState(false);
+
+  const fetchSecretsStatus = async () => {
+    try {
+      const res = await fetch("/api/secrets");
+      if (res.ok) {
+        const data = (await res.json()) as SecretsStatus;
+        setSecretsStatus(data);
+      }
+    } catch (e) {}
+  };
+
+  const handleConnect = async () => {
+    if (!cfAccountId || !cfApiToken) {
+      alert("Account ID and API Token are required");
+      return;
+    }
+    setIsConnecting(true);
+    try {
+      const res = await fetch("/api/secrets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accountId: cfAccountId, apiToken: cfApiToken }),
+      });
+      const data = (await res.json()) as { error?: string; models?: Model[] };
+      if (!res.ok) throw new Error(data.error || "Failed to connect");
+
+      alert("Connected successfully! Models updated.");
+      setCfAccountId("");
+      setCfApiToken("");
+      await fetchSecretsStatus();
+      if (data.models) {
+        refreshModels(data.models);
+      }
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setIsConnecting(false);
+    }
+  };
+
+  const handleReset = async () => {
+    if (
+      !confirm(
+        "Are you sure you want to reset Cloudflare AI credentials? This will revert to the default model list.",
+      )
+    ) {
+      return;
+    }
+    setIsResetting(true);
+    try {
+      const res = await fetch("/api/secrets", { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to reset");
+
+      alert("Credentials reset successfully.");
+      await fetchSecretsStatus();
+      refreshModels(); // Force-fetch static list
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setIsResetting(false);
+    }
+  };
+
   // Sync draft with props when modal opens
   useEffect(() => {
     if (open) {
@@ -60,6 +146,7 @@ export default function SettingsModal({
       setDraftModel(defaultModel);
       setDraftSystemPrompt(systemPrompt);
       setDraftSyncSettings(syncSettings);
+      fetchSecretsStatus();
     }
   }, [open, storageMode, defaultModel, systemPrompt, syncSettings]);
 
@@ -328,6 +415,118 @@ export default function SettingsModal({
                 </div>
               </section>
 
+              {/* Cloudflare AI Configuration */}
+              <section>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-[11px] md:text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-white/40">
+                    Cloudflare AI
+                  </h3>
+                  {secretsStatus.hasToken && (
+                    <span className="flex items-center gap-1 text-[10px] font-bold text-green-500 uppercase tracking-tighter bg-green-500/10 px-1.5 py-0.5 rounded">
+                      <div className="w-1 h-1 rounded-full bg-green-500 animate-pulse"></div>
+                      Connected
+                    </span>
+                  )}
+                </div>
+
+                {!secretsStatus.isConfigurable ? (
+                  <div className="flex items-center justify-between py-2 px-1 mb-2">
+                    <div className="flex items-center gap-2 text-red-500 dark:text-red-400">
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        className="w-4 h-4 stroke-[2.5]"
+                      >
+                        <path
+                          d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                      <p className="text-[13px] font-medium tracking-tight">
+                        SECRET_KEY is not configured.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setShowKeyGuideModal(true)}
+                      className="text-[12px] font-semibold text-gray-500 hover:text-gray-900 dark:text-white/40 dark:hover:text-white/90 transition-colors focus:outline-none"
+                    >
+                      How to fix this →
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between ml-1">
+                        <label className="block text-[11px] font-medium text-gray-500 dark:text-white/40">
+                          Account ID
+                        </label>
+                        <button
+                          onClick={() => setShowAccountHelp(true)}
+                          className="text-[10px] font-semibold text-[#0A84FF] hover:underline"
+                        >
+                          Where do I find this?
+                        </button>
+                      </div>
+                      <input
+                        type="text"
+                        value={cfAccountId}
+                        onChange={(e) => setCfAccountId(e.target.value)}
+                        placeholder={secretsStatus.accountId || "Your Cloudflare Account ID"}
+                        className="w-full text-[13px] bg-black/5 dark:bg-black/20 border-[0.5px] border-black/10 dark:border-white/10 rounded-xl px-3 py-2 text-gray-900 dark:text-white/95 placeholder:text-gray-400 dark:placeholder:text-white/30 outline-none focus:border-[#0A84FF] transition-colors"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between ml-1">
+                        <label className="block text-[11px] font-medium text-gray-500 dark:text-white/40">
+                          API Token (Workers AI Read)
+                        </label>
+                        <button
+                          onClick={() => setShowTokenHelp(true)}
+                          className="text-[10px] font-semibold text-[#0A84FF] hover:underline"
+                        >
+                          How to create this?
+                        </button>
+                      </div>
+                      <input
+                        type="password"
+                        value={cfApiToken}
+                        onChange={(e) => setCfApiToken(e.target.value)}
+                        placeholder={secretsStatus.hasToken ? "••••••••••••••••" : "Your API Token"}
+                        className="w-full text-[13px] bg-black/5 dark:bg-black/20 border-[0.5px] border-black/10 dark:border-white/10 rounded-xl px-3 py-2 text-gray-900 dark:text-white/95 placeholder:text-gray-400 dark:placeholder:text-white/30 outline-none focus:border-[#0A84FF] transition-colors"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleConnect}
+                        disabled={isConnecting || !cfAccountId || !cfApiToken}
+                        className="flex-1 text-[11px] md:text-xs font-medium text-white bg-[#0A84FF] hover:bg-[#0070E0] disabled:opacity-50 disabled:bg-gray-400 rounded-full px-3 py-2 transition-all focus:outline-none"
+                      >
+                        {isConnecting
+                          ? "Validating..."
+                          : secretsStatus.hasToken
+                            ? "Update Credentials"
+                            : "Connect & Refresh"}
+                      </button>
+                      {secretsStatus.hasToken && (
+                        <button
+                          onClick={handleReset}
+                          disabled={isResetting}
+                          className="text-[11px] md:text-xs font-medium text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 border-[0.5px] border-red-500/30 rounded-full px-3 py-2 transition-all focus:outline-none"
+                        >
+                          {isResetting ? "Resetting..." : "Reset"}
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-[10px] text-gray-500 dark:text-white/30 leading-tight px-1">
+                      Tokens are encrypted and stored in your D1 database. Ensure your token has{" "}
+                      <strong>Workers AI Read</strong> permissions.
+                    </p>
+                  </div>
+                )}
+              </section>
+
               {/* Data Management */}
               <section>
                 <h3 className="text-[11px] md:text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-white/40 mb-4">
@@ -482,6 +681,20 @@ export default function SettingsModal({
           </button>
         </div>
       </div>
+
+      <SecretKeyGuideModal open={showKeyGuideModal} onClose={() => setShowKeyGuideModal(false)} />
+
+      <CloudflareHelpModal
+        type="account_id"
+        open={showAccountHelp}
+        onClose={() => setShowAccountHelp(false)}
+      />
+
+      <CloudflareHelpModal
+        type="api_token"
+        open={showTokenHelp}
+        onClose={() => setShowTokenHelp(false)}
+      />
     </div>
   );
 }

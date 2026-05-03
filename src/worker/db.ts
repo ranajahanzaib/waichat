@@ -201,3 +201,78 @@ export async function importConversation(
   // Mark import as complete
   await markImportComplete(db, conversation.id);
 }
+
+/**
+ * Encryption Helpers for Secrets
+ */
+const ENCRYPTION_ALGO = "AES-GCM";
+
+async function getCryptoKey(secretKey: string): Promise<CryptoKey> {
+  const enc = new TextEncoder();
+  // Ensure the key is exactly 32 bytes for AES-256
+  const keyData = enc.encode(secretKey.padEnd(32, "0").slice(0, 32));
+  return crypto.subtle.importKey("raw", keyData, ENCRYPTION_ALGO, false, ["encrypt", "decrypt"]);
+}
+
+export async function encrypt(text: string, secretKey: string): Promise<string> {
+  const key = await getCryptoKey(secretKey);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const enc = new TextEncoder();
+  const encrypted = await crypto.subtle.encrypt(
+    { name: ENCRYPTION_ALGO, iv },
+    key,
+    enc.encode(text),
+  );
+
+  const combined = new Uint8Array(iv.length + encrypted.byteLength);
+  combined.set(iv);
+  combined.set(new Uint8Array(encrypted), iv.length);
+
+  // Use a modern approach for base64 in Workers
+  return btoa(String.fromCharCode(...combined));
+}
+
+export async function decrypt(encryptedBase64: string, secretKey: string): Promise<string> {
+  const key = await getCryptoKey(secretKey);
+  const combined = new Uint8Array(
+    atob(encryptedBase64)
+      .split("")
+      .map((c) => c.charCodeAt(0)),
+  );
+  const iv = combined.slice(0, 12);
+  const data = combined.slice(12);
+
+  const decrypted = await crypto.subtle.decrypt({ name: ENCRYPTION_ALGO, iv }, key, data);
+  return new TextDecoder().decode(decrypted);
+}
+
+export async function getSecret(
+  db: D1Database,
+  key: string,
+  secretKey?: string,
+): Promise<string | null> {
+  if (!secretKey) throw new Error("SECRET_KEY is missing");
+  const encrypted = await getSetting(db, key);
+  if (!encrypted) return null;
+  try {
+    return await decrypt(encrypted, secretKey);
+  } catch (e) {
+    console.error(`[getSecret] Failed to decrypt ${key}:`, e);
+    return null;
+  }
+}
+
+export async function setSecret(
+  db: D1Database,
+  key: string,
+  value: string,
+  secretKey?: string,
+): Promise<void> {
+  if (!secretKey) throw new Error("SECRET_KEY is missing");
+  const encrypted = await encrypt(value, secretKey);
+  await setSetting(db, key, encrypted);
+}
+
+export async function deleteSetting(db: D1Database, key: string): Promise<void> {
+  await db.prepare("DELETE FROM settings WHERE key = ?").bind(key).run();
+}

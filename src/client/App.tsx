@@ -109,7 +109,7 @@ export default function App() {
   const { transferState, initiateMove, executeMove, cancelMove, retryPendingCloudDeletes } =
     useTransfer();
 
-  const { models } = useModels();
+  const { models, refreshModels } = useModels();
   const [defaultModel, setDefaultModel] = useState(
     () => localStorage.getItem(DEFAULT_MODEL_KEY) ?? DEFAULT_MODEL_ID,
   );
@@ -762,6 +762,7 @@ export default function App() {
           onImportWorkspace={handleImportWorkspace}
           theme={theme}
           onThemeChange={setTheme}
+          refreshModels={refreshModels}
         />
       </div>
     </div>

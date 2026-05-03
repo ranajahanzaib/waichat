@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 
 export interface Model {
   id: string;
@@ -36,17 +36,26 @@ export function useModels() {
   const [models, setModels] = useState<Model[]>(FALLBACK_MODELS);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const refreshModels = (newModels?: Model[]) => {
+    if (newModels) {
+      setModels(newModels);
+      return;
+    }
+    setLoading(true);
     fetch("/api/models")
       .then((res) => res.json() as Promise<Model[]>)
       .then((data) => {
         if (Array.isArray(data) && data.length > 0) setModels(data);
       })
       .catch(() => {
-        // keep fallback models
+        // keep current models
       })
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    refreshModels();
   }, []);
 
-  return { models, loading };
+  return { models, loading, refreshModels };
 }

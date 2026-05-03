@@ -4,17 +4,24 @@ import { AVAILABLE_MODELS, generateTitle, streamAiResponse } from "./ai";
 import {
   createConversation,
   deleteConversation,
+  deleteSetting,
   getConversation,
   getConversations,
   getMessages,
+  getSecret,
   getSetting,
   importConversation,
   saveMessage,
+  setSecret,
   setSetting,
   updateConversationTimestamp,
   updateConversationTitle,
 } from "./db";
 import type { ChatRequest, Env } from "./types";
+
+// Isolate-specific in-memory cache for models
+let modelCache: { data: any[]; timestamp: number } | null = null;
+const CACHE_TTL = 60 * 60 * 1000; // 1 hour
 
 function scoreModel(id: string): number {
   let score = 0;
@@ -97,46 +104,143 @@ function formatModelName(id: string): string {
   return prefix ? `${prefix} ${formattedSlug}` : formattedSlug;
 }
 
+async function fetchDynamicModels(accountId: string, apiToken: string): Promise<any[]> {
+  const res = await fetch(
+    `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/models/search?task=Text+Generation&per_page=100`,
+    {
+      headers: {
+        Authorization: `Bearer ${apiToken}`,
+      },
+    },
+  );
+
+  if (!res.ok) throw new Error(`Cloudflare API error: ${res.status}`);
+
+  const data = (await res.json()) as {
+    result: {
+      id: string;
+      name: string;
+      description: string;
+      task: { name: string };
+    }[];
+    success: boolean;
+  };
+
+  return data.result
+    .map((m) => ({ id: m.name, name: formatModelName(m.name) }))
+    .sort((a, b) => scoreModel(b.id) - scoreModel(a.id));
+}
+
 const app = new Hono<{ Bindings: Env }>();
 
 app.use("/api/*", cors());
 
-// Models — fetched live from Cloudflare API if account ID is set, otherwise hardcoded fallback
+// Models - fetched live from Cloudflare API if account ID is set, otherwise hardcoded fallback
 app.get("/api/models", async (c) => {
-  if (!c.env.CLOUDFLARE_ACCOUNT_ID) {
+  // Check Cache
+  const now = Date.now();
+  if (modelCache && now - modelCache.timestamp < CACHE_TTL) {
+    return c.json(modelCache.data);
+  }
+
+  // Resolve Credentials
+  let accountId = c.env.CLOUDFLARE_ACCOUNT_ID;
+  let apiToken = c.env.CLOUDFLARE_API_TOKEN;
+
+  if (!accountId || !apiToken) {
+    try {
+      // Try fetching from D1 if environment variables are missing
+      const d1AccountId = await getSecret(c.env.DB, "cf_account_id", c.env.SECRET_KEY);
+      const d1ApiToken = await getSecret(c.env.DB, "cf_api_token", c.env.SECRET_KEY);
+      if (d1AccountId && d1ApiToken) {
+        accountId = d1AccountId;
+        apiToken = d1ApiToken;
+      }
+    } catch (e) {
+      // SECRET_KEY might be missing, or decryption failed
+    }
+  }
+
+  if (!accountId || !apiToken) {
     return c.json(AVAILABLE_MODELS);
   }
+
+  // Fetch & Cache
   try {
-    const res = await fetch(
-      `https://api.cloudflare.com/client/v4/accounts/${c.env.CLOUDFLARE_ACCOUNT_ID}/ai/models/search?task=Text+Generation&per_page=100`,
-      {
-        headers: {
-          Authorization: `Bearer ${c.env.CLOUDFLARE_API_TOKEN}`,
-        },
-      },
-    );
-
-    if (!res.ok) throw new Error(`Cloudflare API error: ${res.status}`);
-
-    const data = (await res.json()) as {
-      result: {
-        id: string;
-        name: string;
-        description: string;
-        task: { name: string };
-      }[];
-      success: boolean;
-    };
-
-    const models = data.result
-      .map((m) => ({ id: m.name, name: formatModelName(m.name) }))
-      .sort((a, b) => scoreModel(b.id) - scoreModel(a.id));
-
+    const models = await fetchDynamicModels(accountId, apiToken);
+    modelCache = { data: models, timestamp: now };
     return c.json(models);
   } catch (e) {
     console.error("[/api/models] error:", e);
     // Fallback to hardcoded list if API call fails
     return c.json(AVAILABLE_MODELS);
+  }
+});
+
+// Secrets Management for Dynamic Models
+app.get("/api/secrets", async (c) => {
+  const isConfigurable = !!c.env.SECRET_KEY;
+  let accountId: string | null = null;
+  let hasToken = false;
+
+  try {
+    if (isConfigurable) {
+      const rawAccountId = await getSecret(c.env.DB, "cf_account_id", c.env.SECRET_KEY);
+      const rawApiToken = await getSecret(c.env.DB, "cf_api_token", c.env.SECRET_KEY);
+
+      if (rawAccountId) {
+        // Mask account ID: show last 4 chars
+        accountId = rawAccountId.length > 4 ? "********" + rawAccountId.slice(-4) : rawAccountId;
+      }
+      hasToken = !!rawApiToken;
+    }
+  } catch (e) {}
+
+  return c.json({ accountId, hasToken, isConfigurable });
+});
+
+app.post("/api/secrets", async (c) => {
+  if (!c.env.SECRET_KEY) {
+    return c.json({ error: "SECRET_KEY environment variable is not set" }, 400);
+  }
+
+  const { accountId, apiToken } = await c.req.json<{
+    accountId: string;
+    apiToken: string;
+  }>();
+
+  if (!accountId || !apiToken) {
+    return c.json({ error: "Account ID and API Token are required" }, 400);
+  }
+
+  try {
+    // Validate credentials with a test fetch
+    const models = await fetchDynamicModels(accountId, apiToken);
+
+    // Save to D1
+    await setSecret(c.env.DB, "cf_account_id", accountId, c.env.SECRET_KEY);
+    await setSecret(c.env.DB, "cf_api_token", apiToken, c.env.SECRET_KEY);
+
+    // Update cache immediately
+    modelCache = { data: models, timestamp: Date.now() };
+
+    return c.json({ success: true, models });
+  } catch (e: any) {
+    console.error("[POST /api/secrets] error:", e);
+    return c.json({ error: e.message || "Failed to validate credentials" }, 400);
+  }
+});
+
+app.delete("/api/secrets", async (c) => {
+  try {
+    await deleteSetting(c.env.DB, "cf_account_id");
+    await deleteSetting(c.env.DB, "cf_api_token");
+    // Invalidate cache
+    modelCache = null;
+    return c.json({ success: true });
+  } catch (e: any) {
+    console.error("[DELETE /api/secrets] error:", e);
+    return c.json({ error: "Failed to clear credentials" }, 500);
   }
 });
 
