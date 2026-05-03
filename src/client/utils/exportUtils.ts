@@ -124,7 +124,7 @@ export async function exportWorkspace(
 
   const zipped = zipSync(zipData);
 
-  const blob = new Blob([zipped as unknown as BlobPart], { type: "application/zip" });
+  const blob = new Blob([zipped as any], { type: "application/zip" });
   const url = URL.createObjectURL(blob);
 
   const a = document.createElement("a");

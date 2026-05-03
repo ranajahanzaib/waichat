@@ -411,8 +411,11 @@ export default function App() {
         const cloudData = (await res.json()) as {
           conversations: Conversation[];
           messages: Message[];
+          settings: Record<string, string>;
         };
         exportData.cloud = { conversations: cloudData.conversations, messages: cloudData.messages };
+        // Merge cloud settings into exportData
+        exportData.settings = { ...exportData.settings, ...cloudData.settings };
       }
 
       if (scope === "local" || scope === "both") {
@@ -452,14 +455,18 @@ export default function App() {
         );
 
         const total = convs.length;
-        for (let i = 0; i < total; i++) {
-          const conv = convs[i];
-          const convMessages = messagesByConv[conv.id] || [];
-          onProgress(`${prefix} ${i + 1}/${total}...`);
-          try {
-            await adapter.deleteConversation(conv.id);
-          } catch (e) {}
-          await adapter.importConversation(conv, convMessages);
+        const BATCH_SIZE = 5; // Import 5 conversations at once
+        for (let i = 0; i < total; i += BATCH_SIZE) {
+          const chunk = convs.slice(i, i + BATCH_SIZE);
+          await Promise.all(
+            chunk.map(async (conv, index) => {
+              const currentIdx = i + index;
+              const convMessages = messagesByConv[conv.id] || [];
+              onProgress(`${prefix} ${currentIdx + 1}/${total}...`);
+              // adapter.importConversation is now an upsert
+              await adapter.importConversation(conv, convMessages);
+            }),
+          );
         }
       };
 

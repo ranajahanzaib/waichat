@@ -151,9 +151,15 @@ app.get("/api/export", async (c) => {
   try {
     const db = c.env.DB;
     // Fetch all records from the database
-    const { results: conversations } = await db.prepare("SELECT * FROM conversations").all();
-    const { results: messages } = await db.prepare("SELECT * FROM messages").all();
-    const { results: settingsRaw } = await db.prepare("SELECT * FROM settings").all();
+    const { results: conversations } = await db
+      .prepare("SELECT id, title, model, created_at, updated_at FROM conversations")
+      .all();
+    const { results: messages } = await db
+      .prepare(
+        "SELECT id, conversation_id, role, content, created_at, model, parent_id FROM messages WHERE deleted_at IS NULL",
+      )
+      .all();
+    const { results: settingsRaw } = await db.prepare("SELECT key, value FROM settings").all();
 
     // Reformat settings into a simple key-value object
     const settings: Record<string, string> = {};

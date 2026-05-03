@@ -142,16 +142,8 @@ export async function importConversation(
   conversation: Conversation,
   messages: Message[],
 ): Promise<void> {
-  // Idempotency check
-  const existing = await getConversation(db, conversation.id);
-  if (existing) {
-    if (existing.import_complete === 1) {
-      // Previous import completed successfully - idempotent success
-      return;
-    }
-    // Partial leftover from a failed import - clean up
-    await deleteConversation(db, conversation.id);
-  }
+  // Removed idempotency check that prevented overwriting.
+  // Using INSERT OR REPLACE below handles upserts safely.
 
   const BATCH_SIZE = 99;
 
@@ -159,7 +151,7 @@ export async function importConversation(
   const msgStatements = messages.map((m) =>
     db
       .prepare(
-        "INSERT INTO messages (id, conversation_id, role, content, created_at, model, parent_id, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT OR REPLACE INTO messages (id, conversation_id, role, content, created_at, model, parent_id, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
       )
       .bind(
         m.id,
@@ -176,7 +168,7 @@ export async function importConversation(
   // First batch: conversation INSERT + first chunk of messages
   const convInsert = db
     .prepare(
-      "INSERT INTO conversations (id, title, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+      "INSERT OR REPLACE INTO conversations (id, title, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
     )
     .bind(
       conversation.id,
