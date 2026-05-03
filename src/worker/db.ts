@@ -209,8 +209,8 @@ const ENCRYPTION_ALGO = "AES-GCM";
 
 async function getCryptoKey(secretKey: string): Promise<CryptoKey> {
   const enc = new TextEncoder();
-  // Ensure the key is exactly 32 bytes for AES-256
-  const keyData = enc.encode(secretKey.padEnd(32, "0").slice(0, 32));
+  // Use SHA-256 to derive a consistent 32-byte key for AES-256
+  const keyData = await crypto.subtle.digest("SHA-256", enc.encode(secretKey));
   return crypto.subtle.importKey("raw", keyData, ENCRYPTION_ALGO, false, ["encrypt", "decrypt"]);
 }
 

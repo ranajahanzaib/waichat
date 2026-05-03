@@ -47,7 +47,8 @@ export function useModels() {
       .then((data) => {
         if (Array.isArray(data) && data.length > 0) setModels(data);
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error("Failed to refresh models:", err);
         // keep current models
       })
       .finally(() => setLoading(false));

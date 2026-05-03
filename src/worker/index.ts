@@ -150,14 +150,16 @@ app.get("/api/models", async (c) => {
   if (!accountId || !apiToken) {
     try {
       // Try fetching from D1 if environment variables are missing
-      const d1AccountId = await getSecret(c.env.DB, "cf_account_id", c.env.SECRET_KEY);
-      const d1ApiToken = await getSecret(c.env.DB, "cf_api_token", c.env.SECRET_KEY);
+      const [d1AccountId, d1ApiToken] = await Promise.all([
+        getSecret(c.env.DB, "cf_account_id", c.env.SECRET_KEY),
+        getSecret(c.env.DB, "cf_api_token", c.env.SECRET_KEY),
+      ]);
       if (d1AccountId && d1ApiToken) {
         accountId = d1AccountId;
         apiToken = d1ApiToken;
       }
     } catch (e) {
-      // SECRET_KEY might be missing, or decryption failed
+      console.error("[/api/models] Error resolving D1 secrets:", e);
     }
   }
 
@@ -185,8 +187,10 @@ app.get("/api/secrets", async (c) => {
 
   try {
     if (isConfigurable) {
-      const rawAccountId = await getSecret(c.env.DB, "cf_account_id", c.env.SECRET_KEY);
-      const rawApiToken = await getSecret(c.env.DB, "cf_api_token", c.env.SECRET_KEY);
+      const [rawAccountId, rawApiToken] = await Promise.all([
+        getSecret(c.env.DB, "cf_account_id", c.env.SECRET_KEY),
+        getSecret(c.env.DB, "cf_api_token", c.env.SECRET_KEY),
+      ]);
 
       if (rawAccountId) {
         // Mask account ID: show last 4 chars
@@ -194,7 +198,9 @@ app.get("/api/secrets", async (c) => {
       }
       hasToken = !!rawApiToken;
     }
-  } catch (e) {}
+  } catch (e) {
+    console.error("[/api/secrets] Error fetching secrets:", e);
+  }
 
   return c.json({ accountId, hasToken, isConfigurable });
 });

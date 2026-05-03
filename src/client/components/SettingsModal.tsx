@@ -84,7 +84,9 @@ export default function SettingsModal({
         const data = (await res.json()) as SecretsStatus;
         setSecretsStatus(data);
       }
-    } catch (e) {}
+    } catch (e) {
+      console.error("Failed to fetch secrets status:", e);
+    }
   };
 
   const handleConnect = async () => {
