@@ -29,14 +29,17 @@ const DEPRECATED: string[] = [
 const UNAVAILABLE: string[] = [
   /** Error 5016: Requires license agreement 'agree' prompt (@todo: Needs to be addressed in a separate issue) */
   "@cf/meta/llama-3.2-11b-vision-instruct",
+
   /** Error 5006: Incorrect role handling */
   "@cf/meta/llama-guard-3-8b",
+
   /** No output response */
   "@hf/nousresearch/hermes-2-pro-mistral-7b",
-  /** Error 5021: Context window limit exceeded */
+
+  /** Error 5021/1031: Unlike standard 5021 context limit errors that resolve in a new chat,
+   * these models fail even in new sessions, suggesting a different root cause. */
   "@cf/microsoft/phi-2",
-  /** Error 5021/1031: Context window limit exceeded or upstream error */
-  "@cf/meta-llama/llama-2-7b-chat-hf-lora",
+  "@cf/meta-llama/llama-2-7b-chat-hf-lora", // 1031
 ];
 
 /** Other exclusions */
