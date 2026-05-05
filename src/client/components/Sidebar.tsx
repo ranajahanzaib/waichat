@@ -224,7 +224,7 @@ export default function Sidebar({
               <div
                 key={c.id}
                 data-id={c.id}
-                className={`group flex items-center rounded-lg pl-3 pr-0 py-1.5 cursor-pointer text-[13px] md:text-sm transition-all duration-150 [--fade-size:1.1rem] hover:[--fade-size:2rem] ${
+                className={`group relative flex items-center rounded-lg pl-3 pr-0 py-1.5 cursor-pointer text-[13px] md:text-sm transition-all duration-150 [--fade-size:1.1rem] hover:[--fade-size:2rem] ${
                   openMenuId === c.id ? "[--fade-size:2rem]" : ""
                 } ${
                   activeId === c.id
