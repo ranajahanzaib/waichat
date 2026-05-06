@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from "react";
 import type { Conversation, Message, StorageMode } from "../storage";
 import { createStorage } from "../storage";
+import { useToast } from "./useToast";
 
 const PENDING_CLOUD_DELETE_KEY = "waichat:pending-cloud-delete";
 
@@ -13,8 +14,6 @@ interface TransferState {
   prefetchedData: { conversation: Conversation; messages: Message[] } | null;
   /** Estimated bytes for cloud→local size warning */
   estimatedBytes: number;
-  /** Error message if transfer failed */
-  error: string | null;
 }
 
 interface UseTransferReturn {
@@ -36,8 +35,8 @@ export function useTransfer(): UseTransferReturn {
     phase: "idle",
     prefetchedData: null,
     estimatedBytes: 0,
-    error: null,
   });
+  const toast = useToast();
 
   // Keep prefetched data in a ref so async executeMove can access it
   // without depending on stale state
@@ -49,7 +48,6 @@ export function useTransfer(): UseTransferReturn {
       phase: "prefetch",
       prefetchedData: null,
       estimatedBytes: 0,
-      error: null,
     });
 
     try {
@@ -60,8 +58,8 @@ export function useTransfer(): UseTransferReturn {
         setTransferState((prev) => ({
           ...prev,
           phase: "idle",
-          error: "Conversation not found",
         }));
+        toast.error("Conversation not found");
         return;
       }
 
@@ -73,7 +71,6 @@ export function useTransfer(): UseTransferReturn {
         phase: "idle", // Prefetch done, waiting for confirm
         prefetchedData: data,
         estimatedBytes,
-        error: null,
       });
     } catch (e) {
       console.error("[useTransfer] prefetch error:", e);
@@ -82,8 +79,8 @@ export function useTransfer(): UseTransferReturn {
         phase: "idle",
         prefetchedData: null,
         estimatedBytes: 0,
-        error: "Failed to read conversation",
       });
+      toast.error("Failed to read conversation");
     }
   }, []);
 
@@ -97,7 +94,6 @@ export function useTransfer(): UseTransferReturn {
       setTransferState((prev) => ({
         ...prev,
         phase: "transfer",
-        error: null,
       }));
 
       try {
@@ -136,7 +132,6 @@ export function useTransfer(): UseTransferReturn {
           phase: "idle",
           prefetchedData: null,
           estimatedBytes: 0,
-          error: null,
         });
 
         return conversation.id;
@@ -146,8 +141,8 @@ export function useTransfer(): UseTransferReturn {
         setTransferState((prev) => ({
           ...prev,
           phase: "idle",
-          error: errorMessage,
         }));
+        toast.error(errorMessage);
         throw e;
       }
     },
@@ -161,7 +156,6 @@ export function useTransfer(): UseTransferReturn {
       phase: "idle",
       prefetchedData: null,
       estimatedBytes: 0,
-      error: null,
     });
   }, []);
 

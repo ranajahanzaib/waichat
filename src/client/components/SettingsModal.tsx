@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { Model } from "../hooks/useModels";
+import { useToast } from "../hooks/useToast";
 import type { StorageMode } from "../storage";
 import CloudflareHelpModal from "./CloudflareHelpModal";
 import ModelPicker from "./ModelPicker";
@@ -48,6 +49,7 @@ export default function SettingsModal({
   onThemeChange,
   refreshModels,
 }: SettingsModalProps) {
+  const toast = useToast();
   const overlayRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -91,7 +93,7 @@ export default function SettingsModal({
 
   const handleConnect = async () => {
     if (!cfAccountId || !cfApiToken) {
-      alert("Account ID and API Token are required");
+      toast.warning("Account ID and API Token are required");
       return;
     }
     setIsConnecting(true);
@@ -104,7 +106,7 @@ export default function SettingsModal({
       const data = (await res.json()) as { error?: string; models?: Model[] };
       if (!res.ok) throw new Error(data.error || "Failed to connect");
 
-      alert("Connected successfully! Models updated.");
+      toast.success("Connected successfully! Models updated.");
       setCfAccountId("");
       setCfApiToken("");
       await fetchSecretsStatus();
@@ -112,7 +114,7 @@ export default function SettingsModal({
         refreshModels(data.models);
       }
     } catch (e: any) {
-      alert(e.message);
+      toast.error(e.message);
     } finally {
       setIsConnecting(false);
     }
@@ -131,11 +133,11 @@ export default function SettingsModal({
       const res = await fetch("/api/secrets", { method: "DELETE" });
       if (!res.ok) throw new Error("Failed to reset");
 
-      alert("Credentials reset successfully.");
+      toast.success("Credentials reset successfully.");
       await fetchSecretsStatus();
       refreshModels(); // Force-fetch static list
     } catch (e: any) {
-      alert(e.message);
+      toast.error(e.message);
     } finally {
       setIsResetting(false);
     }
@@ -216,11 +218,11 @@ export default function SettingsModal({
       await onImportWorkspace(pendingImportFile, setImportProgress);
       setImportProgress(null);
       setPendingImportFile(null);
-      alert("Workspace imported successfully!");
+      toast.success("Workspace imported successfully!");
     } catch (e: any) {
       setImportProgress(null);
       setPendingImportFile(null);
-      alert(e.message || "Failed to import workspace");
+      toast.error(e.message || "Failed to import workspace");
     }
   };
 

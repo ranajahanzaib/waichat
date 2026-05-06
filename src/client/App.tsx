@@ -4,8 +4,10 @@ import MessageList from "./components/MessageList";
 import ModelPicker from "./components/ModelPicker";
 import SettingsModal from "./components/SettingsModal";
 import Sidebar from "./components/Sidebar";
+import { ToastContainer } from "./components/Toast";
 import { useChat } from "./hooks/useChat";
 import { DEFAULT_MODEL_ID, useModels } from "./hooks/useModels";
+import { useToast } from "./hooks/useToast";
 import { useTransfer } from "./hooks/useTransfer";
 import type { Conversation, Message, StorageMode } from "./storage";
 import { createStorage } from "./storage";
@@ -22,6 +24,7 @@ const MOBILE_BREAKPOINT = 768;
 export type ThemeMode = "system" | "light" | "dark";
 
 export default function App() {
+  const toast = useToast();
   const [theme, setTheme] = useState<ThemeMode>(() => {
     if (typeof window !== "undefined") {
       const stored = localStorage.getItem(THEME_KEY);
@@ -89,7 +92,6 @@ export default function App() {
     activeConversation,
     messages,
     isStreaming,
-    error,
     activeBranch,
     activeVersions,
     loadConversations,
@@ -377,6 +379,8 @@ export default function App() {
       // Execute the move
       const movedId = await executeMove(storageMode, targetMode);
 
+      toast.success(`Chat moved to ${targetMode === "cloud" ? "Cloud" : "Local"} successfully!`);
+
       // If the moved conversation was the active one, clear it
       if (activeConversation?.id === conversationId) {
         clearConversation();
@@ -440,7 +444,7 @@ export default function App() {
       await exportWorkspace(scope, exportData);
     } catch (e) {
       console.error(e);
-      alert("Failed to export workspace");
+      toast.error("Failed to export workspace");
     }
   };
 
@@ -705,12 +709,6 @@ export default function App() {
             </div>
           </header>
 
-          {error && (
-            <div className="mx-6 mt-4 px-4 py-3 bg-red-100/50 dark:bg-red-900/30 border border-red-200 dark:border-red-500/30 rounded-lg text-sm text-red-600 dark:text-red-400">
-              {error}
-            </div>
-          )}
-
           <MessageList
             messages={messages}
             activeBranch={activeBranch}
@@ -767,6 +765,7 @@ export default function App() {
           refreshModels={refreshModels}
         />
       </div>
+      <ToastContainer />
     </div>
   );
 }

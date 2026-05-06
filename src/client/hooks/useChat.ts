@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Conversation, Message, StorageMode } from "../storage";
 import { createStorage } from "../storage";
+import { useToast } from "./useToast";
 
 interface UseChatReturn {
   conversations: Conversation[];
@@ -8,7 +9,6 @@ interface UseChatReturn {
   messages: Message[];
   activeBranch: Message[];
   isStreaming: boolean;
-  error: string | null;
   activeVersions: Record<string, string>;
   loadConversations: () => Promise<void>;
   selectConversation: (id: string) => Promise<void>;
@@ -52,14 +52,13 @@ export function useChat(
   const [activeConversation, setActiveConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
   const [activeVersions, setActiveVersions] = useState<Record<string, string>>({});
   const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     setActiveConversation(null);
     setMessages([]);
-    setError(null);
     setIsStreaming(false);
     setActiveVersions({});
   }, [storageMode]);
@@ -90,7 +89,7 @@ export function useChat(
       const data = await storage.getConversations();
       setConversations(data);
     } catch {
-      setError("Failed to load conversations");
+      toast.error("Failed to load conversations");
     }
   }, [storage]);
 
@@ -108,7 +107,7 @@ export function useChat(
           setActiveVersions({});
         }
       } catch {
-        setError("Failed to load conversation");
+        toast.error("Failed to load conversation");
       }
     },
     [storage],
@@ -154,7 +153,7 @@ export function useChat(
         );
       } catch (err) {
         console.error("Failed to update active model:", err);
-        setError("Failed to update conversation model");
+        toast.error("Failed to update conversation model");
       }
     },
     [storage, activeConversation],
@@ -163,7 +162,6 @@ export function useChat(
   const clearConversation = useCallback(() => {
     setActiveConversation(null);
     setMessages([]);
-    setError(null);
     setActiveVersions({});
   }, []);
 
@@ -348,7 +346,6 @@ export function useChat(
       systemPrompt?: string,
     ) => {
       if (isStreaming) return;
-      setError(null);
 
       const userParentId =
         activeBranch.length > 0 ? activeBranch[activeBranch.length - 1].id : undefined;
@@ -438,7 +435,7 @@ export function useChat(
         }
       } catch (e) {
         console.error("[sendMessage] error:", e);
-        setError("Failed to send message");
+        toast.error("Failed to send message");
         setMessages((prev) => prev.filter((m) => m.id !== assistantMessage.id));
       } finally {
         setIsStreaming(false);
@@ -458,7 +455,6 @@ export function useChat(
       systemPrompt?: string,
     ) => {
       if (isStreaming) return;
-      setError(null);
 
       const targetMsg = messages.find((m) => m.id === targetMessageId);
       if (!targetMsg) return;
@@ -518,7 +514,7 @@ export function useChat(
         await storage.saveMessage({ ...assistantMessage, content: fullContent });
       } catch (e) {
         console.error("[editMessage] error:", e);
-        setError("Failed to edit message");
+        toast.error("Failed to edit message");
         setMessages((prev) =>
           prev.filter((m) => m.id !== assistantMessage.id && m.id !== userMessage.id),
         );
@@ -535,7 +531,6 @@ export function useChat(
   const retryMessage = useCallback(
     async (messageId: string, model: string, storageMode: StorageMode, systemPrompt?: string) => {
       if (isStreaming) return;
-      setError(null);
 
       // Find the target assistant message
       const targetMsg = messages.find((m) => m.id === messageId);
@@ -586,7 +581,7 @@ export function useChat(
         await storage.saveMessage({ ...newAssistantMessage, content: fullContent });
       } catch (e) {
         console.error("[retryMessage] error:", e);
-        setError("Failed to retry message");
+        toast.error("Failed to retry message");
         // Remove the failed placeholder
         setMessages((prev) => prev.filter((m) => m.id !== newAssistantMessage.id));
         // Revert active version to the one the user was viewing
@@ -631,7 +626,7 @@ export function useChat(
         });
       } catch (e) {
         console.error("[deleteMessage] error:", e);
-        setError("Failed to delete message");
+        toast.error("Failed to delete message");
       }
     },
     [activeConversation, storage],
@@ -643,7 +638,6 @@ export function useChat(
     messages,
     activeBranch,
     isStreaming,
-    error,
     activeVersions,
     loadConversations,
     selectConversation,
@@ -676,7 +670,7 @@ export function useChat(
         }
       } catch (err) {
         console.error("Failed to rename conversation:", err);
-        setError("Failed to rename conversation");
+        toast.error("Failed to rename conversation");
         throw err; // Re-throw so the UI can handle UI-specific logic (like closing the input)
       }
     },
