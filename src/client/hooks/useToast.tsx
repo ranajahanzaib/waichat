@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useState } from "react";
+import React, { createContext, useCallback, useContext, useMemo, useState } from "react";
 
 export type ToastType = "success" | "error" | "warning" | "info";
 
@@ -32,23 +32,24 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const addToast = useCallback((message: string, type: ToastType, duration?: number) => {
+    const generateId = () =>
+      typeof crypto !== "undefined" && crypto.randomUUID
+        ? crypto.randomUUID()
+        : Math.random().toString(36).substring(2, 11);
+
     setToasts((prev) => {
       // Deduplication: Check if same message already exists
       const existingIndex = prev.findIndex((t) => t.message === message && t.type === type);
 
       if (existingIndex !== -1) {
-        // If message exists, we just want to trigger a "reset" signal
-        // The easiest way is to remove it and re-add it, or just return prev
-        // and let the component handle timer reset via key change.
-        // However, for pure CSS and React state, let's replace it to ensure re-render.
         const updated = [...prev];
         const existing = updated[existingIndex];
         updated.splice(existingIndex, 1);
-        return [{ ...existing, id: crypto.randomUUID() }, ...updated];
+        return [{ ...existing, id: generateId() }, ...updated];
       }
 
       const newToast: Toast = {
-        id: crypto.randomUUID(),
+        id: generateId(),
         message,
         type,
         duration:
@@ -68,11 +69,12 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   const warning = useCallback((msg: string, d?: number) => addToast(msg, "warning", d), [addToast]);
   const info = useCallback((msg: string, d?: number) => addToast(msg, "info", d), [addToast]);
 
-  return (
-    <ToastContext.Provider value={{ toasts, addToast, removeToast, success, error, warning, info }}>
-      {children}
-    </ToastContext.Provider>
+  const value = useMemo(
+    () => ({ toasts, addToast, removeToast, success, error, warning, info }),
+    [toasts, addToast, removeToast, success, error, warning, info],
   );
+
+  return <ToastContext.Provider value={value}>{children}</ToastContext.Provider>;
 }
 
 export function useToast() {

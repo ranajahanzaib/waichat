@@ -23,6 +23,7 @@ function ToastItem({ toast }: { toast: Toast }) {
   const [isVisible, setIsVisible] = useState(false);
   const [isRemoving, setIsRemoving] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const remainingRef = useRef<number>(toast.duration || 4000);
   const startTimeRef = useRef<number>(Date.now());
   const isPausedRef = useRef(false);
@@ -42,9 +43,11 @@ function ToastItem({ toast }: { toast: Toast }) {
   };
 
   const handleDismiss = () => {
+    if (isRemoving) return;
     setIsVisible(false);
     setIsRemoving(true);
-    setTimeout(() => {
+    clearTimer();
+    dismissTimerRef.current = setTimeout(() => {
       removeToast(toast.id);
     }, 400); // Wait for transition
   };
@@ -58,6 +61,10 @@ function ToastItem({ toast }: { toast: Toast }) {
     return () => {
       cancelAnimationFrame(raf);
       clearTimer();
+      if (dismissTimerRef.current) {
+        clearTimeout(dismissTimerRef.current);
+        dismissTimerRef.current = null;
+      }
     };
   }, []);
 
@@ -137,7 +144,7 @@ function ToastItem({ toast }: { toast: Toast }) {
         flex items-start gap-3 p-4
         backdrop-blur-xl
         border-[0.5px] rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.08)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.4)]
-        transition-all duration-400 cubic-bezier(0.4, 0, 0.2, 1)
+        transition-all duration-400 ease-[cubic-bezier(0.4,0,0.2,1)]
         ${isVisible ? "opacity-100 translate-y-0 scale-100" : "opacity-0 -translate-y-4 scale-95"}
         ${isRemoving ? "opacity-0 scale-90" : ""}
         ${variantStyles[toast.type]}
