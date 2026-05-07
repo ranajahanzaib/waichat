@@ -539,8 +539,6 @@ export default function App() {
     }
   };
 
-  const isInputLocked = false; // Placeholder for future locking logic
-
   return (
     <div className="relative flex h-screen w-full overflow-hidden font-sans text-gray-900 dark:text-white/95">
       {/* Full-screen base layers */}
@@ -742,7 +740,7 @@ export default function App() {
           <ChatInput
             onSend={handleSend}
             isGenerating={isStreaming}
-            disabled={isInputLocked}
+            disabled={false}
             initialValue={pendingPrompt}
             onClearInitialValue={() => setPendingPrompt("")}
             onAbort={stopGeneration}

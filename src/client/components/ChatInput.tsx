@@ -21,13 +21,12 @@ export default function ChatInput({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    // Only apply initialValue if current input is empty to avoid overwriting drafts
-    if (initialValue && !value.trim()) {
+    if (initialValue) {
       setValue(initialValue);
       onClearInitialValue?.();
       textareaRef.current?.focus();
     }
-  }, [initialValue, onClearInitialValue, value]);
+  }, [initialValue, onClearInitialValue]);
 
   // Auto-resize the textarea
   useEffect(() => {
