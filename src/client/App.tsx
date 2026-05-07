@@ -585,7 +585,8 @@ export default function App() {
           onSettingsOpen={() => setSettingsOpen(true)}
           currentMode={storageMode}
           savedMode={savedStorageMode}
-          isStreaming={isStreaming}
+          streamingConversationId={streamingConversationId}
+          streamingStorageMode={streamingStorageMode}
           movingConversationId={transferState.conversationId}
         />
 

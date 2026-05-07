@@ -15,7 +15,8 @@ interface SidebarProps {
   onSettingsOpen: () => void;
   currentMode: StorageMode;
   savedMode: StorageMode;
-  isStreaming: boolean;
+  streamingConversationId: string | null;
+  streamingStorageMode: StorageMode | null;
   movingConversationId: string | null;
 }
 
@@ -32,7 +33,8 @@ export default function Sidebar({
   onSettingsOpen,
   currentMode,
   savedMode, // Kept in props to satisfy the interface and App.tsx
-  isStreaming,
+  streamingConversationId,
+  streamingStorageMode,
   movingConversationId,
 }: SidebarProps) {
   const [pendingDelete, setPendingDelete] = useState<Conversation | null>(null);
@@ -218,7 +220,9 @@ export default function Sidebar({
           )}
           {conversations.map((c) => {
             const isMoving = movingConversationId === c.id;
-            const isMoveDisabled = isMoving || (activeId === c.id && isStreaming);
+            const isThisStreaming =
+              c.id === streamingConversationId && currentMode === streamingStorageMode;
+            const isMoveDisabled = isMoving || isThisStreaming;
 
             return (
               <div
@@ -273,7 +277,8 @@ export default function Sidebar({
                   </div>
                 ) : (
                   <div
-                    className="flex-1 relative overflow-hidden min-w-0 w-full transition-all duration-200"
+                    className="flex-1 relative flex items-center gap-2 overflow-hidden min-w-0 w-full transition-all duration-200"
+                    title={isThisStreaming ? "Generation in progress..." : undefined}
                     style={{
                       maskImage:
                         "linear-gradient(to right, black calc(100% - var(--fade-size)), transparent 100%)",
@@ -281,6 +286,19 @@ export default function Sidebar({
                         "linear-gradient(to right, black calc(100% - var(--fade-size)), transparent 100%)",
                     }}
                   >
+                    {isThisStreaming && (
+                      <div
+                        className={`shrink-0 w-1.5 h-1.5 rounded-full animate-pulse ${
+                          activeId === c.id
+                            ? currentMode === "cloud"
+                              ? "bg-white"
+                              : "bg-gray-900"
+                            : currentMode === "cloud"
+                              ? "bg-brand-cloud"
+                              : "bg-brand-local"
+                        }`}
+                      />
+                    )}
                     <span className="whitespace-nowrap">{c.title}</span>
                   </div>
                 )}
@@ -349,7 +367,8 @@ export default function Sidebar({
                         e.stopPropagation();
                         handleRenameClick(c);
                       }}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-left text-[13px] text-gray-700 dark:text-white/80 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                      disabled={isMoveDisabled}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-left text-[13px] text-gray-700 dark:text-white/80 hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                       role="menuitem"
                     >
                       <svg
@@ -419,7 +438,8 @@ export default function Sidebar({
                         setOpenMenuId(null);
                         setPendingDelete(c);
                       }}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-left text-[13px] text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
+                      disabled={isMoveDisabled}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-left text-[13px] text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                       role="menuitem"
                     >
                       <svg
