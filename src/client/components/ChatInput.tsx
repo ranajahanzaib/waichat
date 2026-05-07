@@ -4,6 +4,7 @@ interface ChatInputProps {
   onSend: (content: string) => void;
   disabled: boolean;
   isGenerating?: boolean;
+  isStreamingHere?: boolean;
   initialValue?: string;
   onClearInitialValue?: () => void;
   onAbort?: () => void;
@@ -13,6 +14,7 @@ export default function ChatInput({
   onSend,
   disabled,
   isGenerating = false,
+  isStreamingHere = false,
   initialValue,
   onClearInitialValue,
   onAbort,
@@ -59,7 +61,7 @@ export default function ChatInput({
   return (
     <div className="w-full flex justify-center pb-6 pt-2 px-4 md:px-8 shrink-0">
       <div className="w-full max-w-[720px] relative">
-        {isGenerating && onAbort && (
+        {isStreamingHere && onAbort && (
           <div className="absolute -top-12 left-1/2 -translate-x-1/2 z-20">
             <button
               type="button"

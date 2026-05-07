@@ -41,6 +41,7 @@ interface UseChatReturn {
   setActiveVersion: (parentId: string, messageId: string) => void;
   deleteMessage: (messageId: string) => Promise<void>;
   renameConversation: (id: string, title: string) => Promise<void>;
+  streamingConversationId: string | null;
 }
 
 export function useChat(
@@ -55,6 +56,12 @@ export function useChat(
   const toast = useToast();
   const [activeVersions, setActiveVersions] = useState<Record<string, string>>({});
   const abortControllerRef = useRef<AbortController | null>(null);
+  const [streamingConversationId, setStreamingConversationId] = useState<string | null>(null);
+  const streamingDataRef = useRef<{
+    conversationId: string;
+    userMessage?: Message;
+    assistantMessage: Message;
+  } | null>(null);
 
   useEffect(() => {
     setActiveConversation(null);
@@ -100,6 +107,23 @@ export function useChat(
         if (!data) return;
         setActiveConversation(data.conversation);
         setMessages(data.messages);
+
+        // Merge in-progress streaming messages if this is the active stream
+        if (streamingDataRef.current?.conversationId === id) {
+          const streaming = streamingDataRef.current;
+          setMessages((prev) => {
+            const existingIds = new Set(prev.map((m) => m.id));
+            const toAdd: Message[] = [];
+            if (streaming.userMessage && !existingIds.has(streaming.userMessage.id)) {
+              toAdd.push(streaming.userMessage);
+            }
+            if (!existingIds.has(streaming.assistantMessage.id)) {
+              toAdd.push(streaming.assistantMessage);
+            }
+            return [...prev, ...toAdd];
+          });
+        }
+
         try {
           const stored = localStorage.getItem(`waichat:versions:${id}`);
           setActiveVersions(stored ? JSON.parse(stored) : {});
@@ -315,6 +339,17 @@ export function useChat(
               }
               if (token) {
                 fullContent += token;
+
+                // Update the persistent ref for re-hydration on re-focus.
+                // Note: JS is single-threaded, so this mutation is safe from interleaving
+                // with selectConversation's read of the same ref.
+                if (streamingDataRef.current?.conversationId === conversationId) {
+                  streamingDataRef.current.assistantMessage = {
+                    ...streamingDataRef.current.assistantMessage,
+                    content: fullContent,
+                  };
+                }
+
                 setMessages((prev) =>
                   prev.map((m) =>
                     m.id === assistantMessageId ? { ...m, content: fullContent } : m,
@@ -372,6 +407,14 @@ export function useChat(
       // Set it as active
       const rootKey = `${conversationId}_root`;
       setActiveVersionCb(userParentId || rootKey, userMessage.id);
+
+      // Track in ref for persistence during stream
+      streamingDataRef.current = {
+        conversationId,
+        userMessage: { ...userMessage }, // Owned copy
+        assistantMessage: { ...assistantMessage }, // Owned copy
+      };
+      setStreamingConversationId(conversationId);
 
       setMessages((prev) => [...prev, userMessage, assistantMessage]);
       setIsStreaming(true);
@@ -439,6 +482,8 @@ export function useChat(
         setMessages((prev) => prev.filter((m) => m.id !== assistantMessage.id));
       } finally {
         setIsStreaming(false);
+        setStreamingConversationId(null);
+        streamingDataRef.current = null;
         abortControllerRef.current = null;
       }
     },
@@ -485,6 +530,14 @@ export function useChat(
       const versionKey = userParentId || rootKey;
       setActiveVersionCb(versionKey, userMessage.id);
 
+      // Track in ref for persistence during stream
+      streamingDataRef.current = {
+        conversationId,
+        userMessage: { ...userMessage }, // Owned copy
+        assistantMessage: { ...assistantMessage }, // Owned copy
+      };
+      setStreamingConversationId(conversationId);
+
       setMessages((prev) => [...prev, userMessage, assistantMessage]);
       setIsStreaming(true);
 
@@ -522,6 +575,8 @@ export function useChat(
         setActiveVersionCb(userParentId || rootKey, targetMessageId);
       } finally {
         setIsStreaming(false);
+        setStreamingConversationId(null);
+        streamingDataRef.current = null;
         abortControllerRef.current = null;
       }
     },
@@ -556,6 +611,13 @@ export function useChat(
       const rootKey = `${conversationId}_root`;
       setActiveVersionCb(assistantParentId || rootKey, newAssistantMessage.id);
 
+      // Track in ref for persistence during stream
+      streamingDataRef.current = {
+        conversationId,
+        assistantMessage: { ...newAssistantMessage }, // Owned copy
+      };
+      setStreamingConversationId(conversationId);
+
       setMessages((prev) => [...prev, newAssistantMessage]);
       setIsStreaming(true);
 
@@ -589,6 +651,8 @@ export function useChat(
         setActiveVersionCb(assistantParentId || rootKey, messageId);
       } finally {
         setIsStreaming(false);
+        setStreamingConversationId(null);
+        streamingDataRef.current = null;
         abortControllerRef.current = null;
       }
     },
@@ -649,6 +713,7 @@ export function useChat(
     editMessage,
     stopGeneration,
     retryMessage,
+    streamingConversationId,
     setActiveVersion: setActiveVersionCb,
     deleteMessage: deleteMessageCb,
     renameConversation: async (id: string, title: string) => {

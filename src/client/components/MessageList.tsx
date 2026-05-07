@@ -10,6 +10,7 @@ interface MessageListProps {
   messages: Message[];
   activeBranch: Message[];
   isStreaming: boolean;
+  isStreamingHere?: boolean;
   onSelectPrompt: (prompt: string) => void;
   onRetry?: (messageId: string) => void;
   onEdit?: (messageId: string, content: string) => void;
@@ -328,6 +329,7 @@ export default function MessageList({
   messages,
   activeBranch,
   isStreaming,
+  isStreamingHere = false,
   onSelectPrompt,
   onRetry,
   onEdit,
@@ -753,7 +755,7 @@ export default function MessageList({
 
           // Assistant group
           const isCurrentlyStreaming =
-            isStreaming && m.content === "" && idx === lastAssistantIndex;
+            isStreamingHere && m.content === "" && idx === lastAssistantIndex;
 
           return (
             <div key={m.id} className="group flex flex-col items-start w-full">
