@@ -278,6 +278,7 @@ export default function Sidebar({
                 ) : (
                   <div
                     className="flex-1 relative flex items-center gap-2 overflow-hidden min-w-0 w-full transition-all duration-200"
+                    title={isThisStreaming ? "Generation in progress..." : undefined}
                     style={{
                       maskImage:
                         "linear-gradient(to right, black calc(100% - var(--fade-size)), transparent 100%)",
@@ -296,7 +297,6 @@ export default function Sidebar({
                               ? "bg-brand-cloud"
                               : "bg-brand-local"
                         }`}
-                        title="Generation in progress..."
                       />
                     )}
                     <span className="whitespace-nowrap">{c.title}</span>
