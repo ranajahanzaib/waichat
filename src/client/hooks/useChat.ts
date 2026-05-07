@@ -140,6 +140,29 @@ export function useChat(
     [onStorageModeChange, toast, pendingSelectionRef],
   );
 
+  const showBackgroundErrorToast = useCallback(
+    (actionName: string, targetMode: StorageMode, conversationId: string) => {
+      const isBackground = storageModeRef.current !== targetMode;
+      const modeLabel = targetMode === "cloud" ? "Cloud" : "Local";
+
+      const message = `Failed to ${actionName}${isBackground ? ` in ${modeLabel} mode` : ""}`;
+
+      const action =
+        isBackground && onStorageModeChange
+          ? {
+              label: "Switch",
+              onClick: () => {
+                onStorageModeChange(targetMode);
+                if (pendingSelectionRef) pendingSelectionRef.current = conversationId;
+              },
+            }
+          : undefined;
+
+      toast.error(message, 6000, action);
+    },
+    [onStorageModeChange, toast, pendingSelectionRef],
+  );
+
   const loadConversations = useCallback(async () => {
     try {
       const data = await storage.getConversations();
@@ -525,7 +548,7 @@ export function useChat(
           console.log("[sendMessage] Aborted background stream");
         } else {
           console.error("[sendMessage] error:", e);
-          toast.error("Failed to send message");
+          showBackgroundErrorToast("send message", storageMode, conversationId);
           setMessages((prev) => prev.filter((m) => m.id !== assistantMessage.id));
         }
       } finally {
@@ -548,6 +571,7 @@ export function useChat(
       activeConversation,
       toast,
       showBackgroundCompletionToast,
+      showBackgroundErrorToast,
     ],
   );
 
@@ -640,7 +664,7 @@ export function useChat(
           console.log("[editMessage] Aborted background stream");
         } else {
           console.error("[editMessage] error:", e);
-          toast.error("Failed to edit message");
+          showBackgroundErrorToast("edit message", storageMode, conversationId);
           setMessages((prev) =>
             prev.filter((m) => m.id !== assistantMessage.id && m.id !== userMessage.id),
           );
@@ -667,6 +691,7 @@ export function useChat(
       activeConversation,
       toast,
       showBackgroundCompletionToast,
+      showBackgroundErrorToast,
     ],
   );
 
@@ -742,7 +767,7 @@ export function useChat(
           console.log("[retryMessage] Aborted background stream");
         } else {
           console.error("[retryMessage] error:", e);
-          toast.error("Failed to retry message");
+          showBackgroundErrorToast("retry message", storageMode, conversationId);
           // Remove the failed placeholder
           setMessages((prev) => prev.filter((m) => m.id !== newAssistantMessage.id));
           // Revert active version to the one the user was viewing
@@ -769,6 +794,7 @@ export function useChat(
       activeConversation,
       toast,
       showBackgroundCompletionToast,
+      showBackgroundErrorToast,
     ],
   );
 
