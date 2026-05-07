@@ -59,6 +59,7 @@ export function useChat(
   const [streamingConversationId, setStreamingConversationId] = useState<string | null>(null);
   const streamingDataRef = useRef<{
     conversationId: string;
+    storageMode: StorageMode;
     userMessage?: Message;
     assistantMessage: Message;
   } | null>(null);
@@ -108,8 +109,11 @@ export function useChat(
         setActiveConversation(data.conversation);
         setMessages(data.messages);
 
-        // Merge in-progress streaming messages if this is the active stream
-        if (streamingDataRef.current?.conversationId === id) {
+        // Merge in-progress streaming messages if this is the active stream in the same storage mode
+        if (
+          streamingDataRef.current?.conversationId === id &&
+          streamingDataRef.current?.storageMode === storageMode
+        ) {
           const streaming = streamingDataRef.current;
           setMessages((prev) => {
             const existingIds = new Set(prev.map((m) => m.id));
@@ -120,6 +124,7 @@ export function useChat(
             if (!existingIds.has(streaming.assistantMessage.id)) {
               toAdd.push(streaming.assistantMessage);
             }
+            if (toAdd.length === 0) return prev;
             return [...prev, ...toAdd];
           });
         }
@@ -134,7 +139,7 @@ export function useChat(
         toast.error("Failed to load conversation");
       }
     },
-    [storage],
+    [storage, storageMode],
   );
 
   const newConversation = useCallback(
@@ -411,6 +416,7 @@ export function useChat(
       // Track in ref for persistence during stream
       streamingDataRef.current = {
         conversationId,
+        storageMode,
         userMessage: { ...userMessage }, // Owned copy
         assistantMessage: { ...assistantMessage }, // Owned copy
       };
@@ -533,6 +539,7 @@ export function useChat(
       // Track in ref for persistence during stream
       streamingDataRef.current = {
         conversationId,
+        storageMode,
         userMessage: { ...userMessage }, // Owned copy
         assistantMessage: { ...assistantMessage }, // Owned copy
       };
@@ -614,6 +621,7 @@ export function useChat(
       // Track in ref for persistence during stream
       streamingDataRef.current = {
         conversationId,
+        storageMode,
         assistantMessage: { ...newAssistantMessage }, // Owned copy
       };
       setStreamingConversationId(conversationId);
