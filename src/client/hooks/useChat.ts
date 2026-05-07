@@ -124,6 +124,7 @@ export function useChat(
           if (toAdd.length > 0) {
             currentMessages = [...currentMessages, ...toAdd];
           }
+          setIsStreaming(true);
         }
         setMessages(currentMessages);
 
