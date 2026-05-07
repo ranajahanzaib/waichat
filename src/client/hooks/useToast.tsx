@@ -7,15 +7,19 @@ export interface Toast {
   message: string;
   type: ToastType;
   duration?: number;
+  action?: {
+    label: string;
+    onClick: () => void;
+  };
 }
 
 interface ToastActionsContextType {
-  addToast: (message: string, type: ToastType, duration?: number) => void;
+  addToast: (message: string, type: ToastType, duration?: number, action?: Toast["action"]) => void;
   removeToast: (id: string) => void;
-  success: (message: string, duration?: number) => void;
-  error: (message: string, duration?: number) => void;
-  warning: (message: string, duration?: number) => void;
-  info: (message: string, duration?: number) => void;
+  success: (message: string, duration?: number, action?: Toast["action"]) => void;
+  error: (message: string, duration?: number, action?: Toast["action"]) => void;
+  warning: (message: string, duration?: number, action?: Toast["action"]) => void;
+  info: (message: string, duration?: number, action?: Toast["action"]) => void;
 }
 
 const ToastStateContext = createContext<Toast[] | undefined>(undefined);
@@ -31,43 +35,59 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
-  const addToast = useCallback((message: string, type: ToastType, duration?: number) => {
-    const generateId = () =>
-      typeof crypto !== "undefined" && crypto.randomUUID
-        ? crypto.randomUUID()
-        : Math.random().toString(36).substring(2, 11);
+  const addToast = useCallback(
+    (message: string, type: ToastType, duration?: number, action?: Toast["action"]) => {
+      const generateId = () =>
+        typeof crypto !== "undefined" && crypto.randomUUID
+          ? crypto.randomUUID()
+          : Math.random().toString(36).substring(2, 11);
 
-    setToasts((prev) => {
-      // Deduplication: Check if same message already exists
-      const existingIndex = prev.findIndex((t) => t.message === message && t.type === type);
+      setToasts((prev) => {
+        // Deduplication: Check if same message already exists
+        const existingIndex = prev.findIndex((t) => t.message === message && t.type === type);
 
-      if (existingIndex !== -1) {
-        const updated = [...prev];
-        const existing = updated[existingIndex];
-        updated.splice(existingIndex, 1);
-        return [{ ...existing, id: generateId() }, ...updated];
-      }
+        if (existingIndex !== -1) {
+          const updated = [...prev];
+          const existing = updated[existingIndex];
+          updated.splice(existingIndex, 1);
+          return [{ ...existing, id: generateId(), action }, ...updated];
+        }
 
-      const newToast: Toast = {
-        id: generateId(),
-        message,
-        type,
-        duration:
-          duration ?? (type === "error" ? 8000 : type === "warning" ? 6000 : DEFAULT_DURATION),
-      };
+        const newToast: Toast = {
+          id: generateId(),
+          message,
+          type,
+          action,
+          duration:
+            duration ?? (type === "error" ? 8000 : type === "warning" ? 6000 : DEFAULT_DURATION),
+        };
 
-      const next = [newToast, ...prev];
-      if (next.length > MAX_TOASTS) {
-        return next.slice(0, MAX_TOASTS);
-      }
-      return next;
-    });
-  }, []);
+        const next = [newToast, ...prev];
+        if (next.length > MAX_TOASTS) {
+          return next.slice(0, MAX_TOASTS);
+        }
+        return next;
+      });
+    },
+    [],
+  );
 
-  const success = useCallback((msg: string, d?: number) => addToast(msg, "success", d), [addToast]);
-  const error = useCallback((msg: string, d?: number) => addToast(msg, "error", d), [addToast]);
-  const warning = useCallback((msg: string, d?: number) => addToast(msg, "warning", d), [addToast]);
-  const info = useCallback((msg: string, d?: number) => addToast(msg, "info", d), [addToast]);
+  const success = useCallback(
+    (msg: string, d?: number, a?: Toast["action"]) => addToast(msg, "success", d, a),
+    [addToast],
+  );
+  const error = useCallback(
+    (msg: string, d?: number, a?: Toast["action"]) => addToast(msg, "error", d, a),
+    [addToast],
+  );
+  const warning = useCallback(
+    (msg: string, d?: number, a?: Toast["action"]) => addToast(msg, "warning", d, a),
+    [addToast],
+  );
+  const info = useCallback(
+    (msg: string, d?: number, a?: Toast["action"]) => addToast(msg, "info", d, a),
+    [addToast],
+  );
 
   const actions = useMemo(
     () => ({ addToast, removeToast, success, error, warning, info }),

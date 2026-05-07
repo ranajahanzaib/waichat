@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import ChatInput from "./components/ChatInput";
 import MessageList from "./components/MessageList";
 import ModelPicker from "./components/ModelPicker";
@@ -86,6 +86,14 @@ export default function App() {
   });
 
   const pendingSelectionRef = useRef<string | null>(null);
+  const [storageDropdownOpen, setStorageDropdownOpen] = useState(false);
+
+  const handleStorageToggle = useCallback((next: StorageMode) => {
+    setStorageMode(next);
+    setSavedStorageMode(next); // Sync saved mode when manually toggled
+    localStorage.setItem(STORAGE_MODE_KEY, next);
+    setStorageDropdownOpen(false);
+  }, []);
 
   const {
     conversations,
@@ -108,9 +116,13 @@ export default function App() {
     deleteMessage,
     renameConversation,
     streamingConversationId,
-  } = useChat(storageMode, pendingSelectionRef);
+    streamingStorageMode,
+  } = useChat(storageMode, pendingSelectionRef, handleStorageToggle);
 
-  const isStreamingHere = isStreaming && activeConversation?.id === streamingConversationId;
+  const isStreamingHere =
+    isStreaming &&
+    activeConversation?.id === streamingConversationId &&
+    storageMode === streamingStorageMode;
 
   const { transferState, initiateMove, executeMove, cancelMove, retryPendingCloudDeletes } =
     useTransfer();
@@ -130,7 +142,6 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   // Storage dropdown state for mobile-friendly click toggling
-  const [storageDropdownOpen, setStorageDropdownOpen] = useState(false);
 
   // Sidebar state: Open by default on desktop, closed on mobile
   const [sidebarOpen, setSidebarOpen] = useState(() => {
@@ -276,13 +287,6 @@ export default function App() {
   const handleSelectConversation = (id: string) => {
     selectConversation(id);
     closeSidebarOnMobile();
-  };
-
-  const handleStorageToggle = (next: StorageMode) => {
-    setStorageMode(next);
-    setSavedStorageMode(next); // Sync saved mode when manually toggled
-    localStorage.setItem(STORAGE_MODE_KEY, next);
-    setStorageDropdownOpen(false);
   };
 
   // Wrapper for new chat with mode support
@@ -745,6 +749,7 @@ export default function App() {
             onSend={handleSend}
             isGenerating={isStreaming}
             isStreamingHere={isStreamingHere}
+            streamingStorageMode={streamingStorageMode}
             disabled={false}
             initialValue={pendingPrompt}
             onClearInitialValue={() => setPendingPrompt("")}

@@ -156,6 +156,18 @@ function ToastItem({ toast }: { toast: Toast }) {
         <p className="text-[13px] md:text-sm font-medium leading-relaxed break-words">
           {toast.message}
         </p>
+        {toast.action && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              toast.action?.onClick();
+              handleDismiss();
+            }}
+            className="mt-2 px-3 py-1 bg-white dark:bg-white/10 border-[0.5px] border-black/10 dark:border-white/20 rounded-lg text-xs font-semibold hover:bg-black/5 dark:hover:bg-white/20 transition-all focus:outline-none"
+          >
+            {toast.action.label}
+          </button>
+        )}
       </div>
       <button
         onClick={handleDismiss}

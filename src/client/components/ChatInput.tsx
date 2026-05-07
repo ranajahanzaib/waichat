@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react";
+import type { StorageMode } from "../storage";
 
 interface ChatInputProps {
   onSend: (content: string) => void;
   disabled: boolean;
   isGenerating?: boolean;
   isStreamingHere?: boolean;
+  streamingStorageMode?: StorageMode | null;
   initialValue?: string;
   onClearInitialValue?: () => void;
   onAbort?: () => void;
@@ -15,6 +17,7 @@ export default function ChatInput({
   disabled,
   isGenerating = false,
   isStreamingHere = false,
+  streamingStorageMode,
   initialValue,
   onClearInitialValue,
   onAbort,
@@ -83,8 +86,16 @@ export default function ChatInput({
             value={value}
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Message WaiChat..."
-            disabled={disabled}
+            placeholder={
+              isGenerating && !isStreamingHere
+                ? "Another generation is in progress" +
+                  (streamingStorageMode
+                    ? " in " + (streamingStorageMode === "cloud" ? "Cloud" : "Local") + " mode"
+                    : "") +
+                  "..."
+                : "Message WaiChat..."
+            }
+            disabled={disabled || (isGenerating && !isStreamingHere)}
             rows={1}
             className="w-full bg-transparent border-none text-gray-900 dark:text-white/95 text-base outline-none resize-none leading-relaxed min-h-[24px] max-h-[200px] pr-12 placeholder:text-gray-400 dark:placeholder:text-white/40 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-black/10 dark:[&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full"
           />
