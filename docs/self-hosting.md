@@ -35,7 +35,7 @@ Cloudflare detects the push and redeploys automatically within seconds.
 
 > **Note:** This option gets you running instantly, but your deployment won't receive future updates automatically. Use the Fork method above for long-term self-hosting.
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/ranajahanzaib/WaiChat/tree/v0.1.5-alpha.1)
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/ranajahanzaib/WaiChat/tree/v0.1.5-alpha.2)
 
 Cloudflare handles everything - provisions a D1 database and Workers AI binding, builds, and deploys to `https://waichat.<your-subdomain>.workers.dev`.
 

@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+## [0.1.5-alpha.2] - 2026-05-09
+
+**Security**
+
+- Bumped `hono` to `4.12.18`, fixing three security issues:
+  - **GHSA-p77w-8qqv-26rm** - Cache Middleware: responses cached for one authenticated user could be served to others when `Vary: Authorization` or `Vary: Cookie` was present
+  - **GHSA-qp7p-654g-cw7p** - `hono/jsx`: untrusted input in `style` object values could inject additional CSS declarations during SSR
+  - **GHSA-hm8q-7f3q-5f36** - `hono/utils/jwt`: falsy, non-finite, or non-numeric `exp/nbf/iat` values could silently bypass time-based JWT checks
+
 ## [0.1.5-alpha.1] - 2026-05-08
 
 ### Security
