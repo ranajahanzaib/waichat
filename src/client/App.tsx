@@ -160,6 +160,7 @@ export default function App() {
   }, [newConversation, defaultModel, newChatDraft]);
 
   const handleEndTemporaryChat = useCallback(async () => {
+    stopGeneration();
     if (activeConversation) {
       await deleteConversation(activeConversation.id);
     }
@@ -169,7 +170,14 @@ export default function App() {
     setSidebarOpen(true);
     setInputValue("");
     toast.success("Temporary session ended");
-  }, [deleteConversation, activeConversation, savedStorageMode, clearConversation, toast]);
+  }, [
+    stopGeneration,
+    deleteConversation,
+    activeConversation,
+    savedStorageMode,
+    clearConversation,
+    toast,
+  ]);
 
   const handleSaveTemporaryChat = useCallback(async () => {
     if (!activeConversation) return;
@@ -723,13 +731,15 @@ export default function App() {
               <div className="flex items-center gap-3">
                 <button
                   onClick={handleSaveTemporaryChat}
-                  className="px-4 py-1.5 bg-slate-700 hover:bg-slate-600 text-white text-[11px] md:text-xs font-bold rounded-lg shadow-lg shadow-slate-500/20 transition-all border border-slate-400/30"
+                  disabled={isStreaming}
+                  className="px-4 py-1.5 bg-slate-700 hover:bg-slate-600 text-white text-[11px] md:text-xs font-bold rounded-lg shadow-lg shadow-slate-500/20 transition-all border border-slate-400/30 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Save Chat
                 </button>
                 <button
-                  onClick={() => setTempChatConfirmOpen(true)}
-                  className="px-4 py-1.5 bg-white/40 dark:bg-white/5 hover:bg-white/60 dark:hover:bg-white/10 text-slate-700 dark:text-slate-300 text-[11px] md:text-xs font-bold rounded-lg border border-slate-500/30 transition-all backdrop-blur-sm"
+                  onClick={() => !isStreaming && setTempChatConfirmOpen(true)}
+                  disabled={isStreaming}
+                  className="px-4 py-1.5 bg-white/40 dark:bg-white/5 hover:bg-white/60 dark:hover:bg-white/10 text-slate-700 dark:text-slate-300 text-[11px] md:text-xs font-bold rounded-lg border border-slate-500/30 transition-all backdrop-blur-sm disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   End
                 </button>

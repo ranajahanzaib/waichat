@@ -83,13 +83,44 @@ export class MemoryStorage implements StorageAdapter {
   }
 
   async deleteMessage(conversationId: string, messageId: string): Promise<DeleteMessageResult> {
-    const msgs = this.messages.get(conversationId) || [];
-    const newMsgs = msgs.filter((m) => m.id !== messageId);
-    this.messages.set(conversationId, newMsgs);
-    return {
-      deletedIds: [messageId],
-      softDeletedIds: [],
-    };
+    let messages = this.messages.get(conversationId) || [];
+    const msg = messages.find((m) => m.id === messageId);
+    if (!msg) return { deletedIds: [], softDeletedIds: [] };
+
+    const childrenMap = new Map<string | null, string[]>();
+    for (const m of messages) {
+      const pId = m.parent_id || null;
+      const children = childrenMap.get(pId) || [];
+      children.push(m.id);
+      childrenMap.set(pId, children);
+    }
+
+    const descendants = new Set<string>();
+    const stack = [messageId];
+    while (stack.length > 0) {
+      const currentId = stack.pop()!;
+      if (descendants.has(currentId)) continue;
+      descendants.add(currentId);
+      const children = childrenMap.get(currentId);
+      if (children) stack.push(...children);
+    }
+
+    const softDeletedIds = Array.from(descendants);
+
+    // Apply soft-deletes
+    const updatedMessages = messages.map((m) =>
+      softDeletedIds.includes(m.id) ? { ...m, content: "", deleted_at: Date.now() } : m,
+    );
+
+    this.messages.set(conversationId, updatedMessages);
+
+    // Update conversation timestamp
+    const conv = this.conversations.find((c) => c.id === conversationId);
+    if (conv) {
+      conv.updated_at = Date.now();
+    }
+
+    return { deletedIds: [], softDeletedIds };
   }
 
   async exportConversation(
