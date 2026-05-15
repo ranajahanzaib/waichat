@@ -431,6 +431,18 @@ export function useChat(
                     m.id === assistantMessageId ? { ...m, content: fullContent } : m,
                   ),
                 );
+
+                // Periodic persistence for local/temporary mode
+                if (
+                  storageMode !== "cloud" &&
+                  (fullContent.length % 50 === 0 || fullContent.length < 50)
+                ) {
+                  const s = createStorage(storageMode);
+                  s.saveMessage({
+                    ...streamingDataRef.current!.assistantMessage,
+                    content: fullContent,
+                  });
+                }
               }
             } catch {}
           }
@@ -496,6 +508,13 @@ export function useChat(
       setMessages((prev) => [...prev, userMessage, assistantMessage]);
       setIsStreaming(true);
       setStreamingStorageMode(storageMode);
+
+      // Persist immediately in local/temporary mode to prevent loss on reload
+      if (storageMode !== "cloud") {
+        const s = createStorage(storageMode);
+        await s.saveMessage(userMessage);
+        await s.saveMessage(assistantMessage);
+      }
 
       const abortController = new AbortController();
       abortControllerRef.current = abortController;
