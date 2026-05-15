@@ -113,20 +113,6 @@ export default function App() {
     () => localStorage.getItem("waichat:temp-expiry") || "1h",
   );
 
-  const handleTempExpiryChange = useCallback((val: string) => {
-    setTempExpiry(val);
-    localStorage.setItem("waichat:temp-expiry", val);
-  }, []);
-
-  const handleStorageToggle = useCallback((next: StorageMode) => {
-    setStorageMode(next);
-    if (next !== "temporary") {
-      setSavedStorageMode(next);
-      localStorage.setItem(STORAGE_MODE_KEY, next);
-    }
-    setStorageDropdownOpen(false);
-  }, []);
-
   const {
     conversations,
     activeConversation,
@@ -157,6 +143,20 @@ export default function App() {
   useEffect(() => {
     activeConversationIdRef.current = activeConversation?.id || null;
   }, [activeConversation?.id]);
+
+  const handleTempExpiryChange = useCallback((val: string) => {
+    setTempExpiry(val);
+    localStorage.setItem("waichat:temp-expiry", val);
+  }, []);
+
+  const handleStorageToggle = useCallback((next: StorageMode) => {
+    setStorageMode(next);
+    if (next !== "temporary") {
+      setSavedStorageMode(next);
+      localStorage.setItem(STORAGE_MODE_KEY, next);
+    }
+    setStorageDropdownOpen(false);
+  }, []);
 
   // Initial Temporary Chat Cleanup (only on mount)
   useEffect(() => {
@@ -343,19 +343,21 @@ export default function App() {
   };
 
   const handleSelectConversation = (id: string) => {
-    // Save current input to its draft key
+    // Save current input to its draft key before switching
     const currentKey = activeConversation?.id || "new";
-    setDrafts((prev) => ({ ...prev, [currentKey]: inputValue }));
+    const nextDraft = drafts[id] || "";
 
+    setDrafts((prev) => ({ ...prev, [currentKey]: inputValue }));
     selectConversation(id);
-    // Load draft for the target conversation
-    setInputValue(drafts[id] || "");
+    setInputValue(nextDraft);
     closeSidebarOnMobile();
   };
 
   const handleNew = async (targetMode?: StorageMode) => {
     // Save current input draft before switching
     const currentKey = activeConversation?.id || "new";
+    const nextNewDraft = drafts["new"] || "";
+
     setDrafts((prev) => ({ ...prev, [currentKey]: inputValue }));
 
     const finalMode = targetMode ?? storageMode;
@@ -372,7 +374,7 @@ export default function App() {
       clearConversation();
       window.history.pushState({}, "", "/");
     }
-    setInputValue(drafts["new"] || ""); // Restore the new chat draft
+    setInputValue(nextNewDraft);
     closeSidebarOnMobile();
   };
 
@@ -390,14 +392,9 @@ export default function App() {
     setDrafts((prev) => ({ ...prev, [key]: "" }));
   };
 
-  const handleInputChange = useCallback(
-    (val: string) => {
-      setInputValue(val);
-      const key = activeConversation?.id || "new";
-      setDrafts((prev) => ({ ...prev, [key]: val }));
-    },
-    [activeConversation?.id],
-  );
+  const handleInputChange = useCallback((val: string) => {
+    setInputValue(val);
+  }, []);
 
   const handleDefaultModelChange = async (m: string, sync: boolean = syncSettings) => {
     setDefaultModel(m);

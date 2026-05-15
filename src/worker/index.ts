@@ -436,7 +436,7 @@ app.post("/api/conversations/:conversationId/messages", async (c) => {
 
   await db
     .prepare(
-      "INSERT OR REPLACE INTO messages (id, conversation_id, role, content, created_at, model, parent_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      "INSERT INTO messages (id, conversation_id, role, content, created_at, model, parent_id) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET content=excluded.content, model=COALESCE(excluded.model, messages.model)",
     )
     .bind(
       messageId,

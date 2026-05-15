@@ -57,7 +57,7 @@ export class LocalStorage implements StorageAdapter {
       } else if (expirySetting === "6h") {
         expires_at = now + 6 * 60 * 60 * 1000;
       } else if (expirySetting === "instant") {
-        expires_at = now;
+        expires_at = 0; // Special value: delete on reload
       } else {
         // Default to 1h
         expires_at = now + 60 * 60 * 1000;
@@ -197,15 +197,18 @@ export class LocalStorage implements StorageAdapter {
     const expired = conversations.filter((c) => {
       if (!c.is_temporary) return false;
 
-      // 1. Handle "Instant" - delete on session start or when setting is activated
-      if (expirySetting === "instant") {
-        return isInitial;
+      // 1. Priority: Specific expires_at (set at creation)
+      if (c.expires_at !== undefined) {
+        if (c.expires_at === 0) {
+          // 'Instant' chats are only deleted on reload (isInitial=true)
+          return isInitial;
+        }
+        return c.expires_at < now;
       }
 
-      // 2. Handle Duration-based
-      // Priority: 1. Specific expires_at (set at creation) 2. Calculated via current global setting + activity
-      if (c.expires_at) {
-        return c.expires_at < now;
+      // 2. Fallback: For older chats or if global setting is currently "instant"
+      if (expirySetting === "instant") {
+        return isInitial;
       }
 
       const duration = expiryDurations[expirySetting] || 3600000;
