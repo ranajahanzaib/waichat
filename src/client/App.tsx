@@ -148,44 +148,6 @@ export default function App() {
     handleStorageToggle(mode);
   });
 
-  const handleSaveTemporaryChat = useCallback(async () => {
-    if (!activeConversation) return;
-
-    try {
-      const targetMode = savedStorageMode;
-
-      if (targetMode === "local") {
-        const local = createStorage("local");
-        await local.importConversation(activeConversation, messages);
-        setStorageMode("local");
-        toast.success("Chat saved to Local Workspace");
-      } else {
-        // Migrate to Cloud
-        const targetStorage = createStorage("cloud");
-        const data = {
-          conversation: { ...activeConversation },
-          messages: [...messages],
-        };
-
-        await targetStorage.importConversation(data.conversation, data.messages);
-
-        // Delete the temporary one from local
-        const local = createStorage("temporary");
-        await local.deleteConversation(activeConversation.id);
-
-        setStorageMode("cloud");
-        toast.success("Chat saved to Cloud Workspace");
-      }
-
-      if (window.innerWidth >= MOBILE_BREAKPOINT) {
-        setSidebarOpen(true);
-      }
-    } catch (err) {
-      console.error("Failed to save temporary chat:", err);
-      toast.error("Failed to save chat");
-    }
-  }, [activeConversation, messages, savedStorageMode, toast]);
-
   // Temporary Chat Expiration Cleanup
   useEffect(() => {
     const cleanup = async (isInitial = false) => {
