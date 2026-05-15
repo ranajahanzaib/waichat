@@ -51,6 +51,8 @@ export function useChat(
   onStorageModeChange?: (mode: StorageMode) => void,
 ): UseChatReturn {
   const storageModeRef = useRef(storageMode);
+  const activeConversationIdRef = useRef<string | null>(null);
+
   useEffect(() => {
     storageModeRef.current = storageMode;
   }, [storageMode]);
@@ -58,6 +60,11 @@ export function useChat(
   const storage = useMemo(() => createStorage(storageMode), [storageMode]);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversation, setActiveConversation] = useState<Conversation | null>(null);
+
+  useEffect(() => {
+    activeConversationIdRef.current = activeConversation?.id || null;
+  }, [activeConversation?.id]);
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingStorageMode, setStreamingStorageMode] = useState<StorageMode | null>(null);
@@ -134,17 +141,11 @@ export function useChat(
   );
 
   // After mode change: auto-select a conversation if pendingSelectionRef is set
-  const selectAfterModeChangeRef = useRef(false);
   useEffect(() => {
-    selectAfterModeChangeRef.current = true;
-  }, [storageMode]);
-
-  useEffect(() => {
-    if (selectAfterModeChangeRef.current && pendingSelectionRef?.current) {
+    if (pendingSelectionRef?.current) {
       const id = pendingSelectionRef.current;
       pendingSelectionRef.current = null;
-      selectAfterModeChangeRef.current = false;
-      // Select the specific conversation (conversation list is loaded by App.tsx)
+      // Select the specific conversation
       storage.getConversation(id).then((result) => {
         if (result) {
           setActiveConversation(result.conversation);
@@ -153,12 +154,13 @@ export function useChat(
         }
       });
     }
-  }, [storage, storageMode, pendingSelectionRef]);
+  }, [storage, storageMode, pendingSelectionRef, mergeStreamingData]);
 
   const showBackgroundCompletionToast = useCallback(
     (targetMode: StorageMode, conversationId: string, title?: string) => {
+      // Use refs to check current state to avoid closure staleness during async streams
       const isWrongMode = storageModeRef.current !== targetMode;
-      const isWrongChat = activeConversation?.id !== conversationId;
+      const isWrongChat = activeConversationIdRef.current !== conversationId;
 
       if (!isWrongMode && !isWrongChat) return;
 
@@ -166,8 +168,8 @@ export function useChat(
         label: "View",
         onClick: () => {
           if (isWrongMode && onStorageModeChange) {
-            onStorageModeChange(targetMode);
             if (pendingSelectionRef) pendingSelectionRef.current = conversationId;
+            onStorageModeChange(targetMode);
           } else {
             selectConversation(conversationId);
           }
@@ -212,10 +214,12 @@ export function useChat(
       const targetStorage = createStorage(mode);
       const conversation = await targetStorage.createConversation(model);
 
-      setConversations((prev) => [conversation, ...prev]);
-      setActiveConversation(conversation);
-      setMessages([]);
-      setActiveVersions({});
+      if (mode === storageMode) {
+        setConversations((prev) => [conversation, ...prev]);
+        setActiveConversation(conversation);
+        setMessages([]);
+        setActiveVersions({});
+      }
       return conversation;
     },
     [storageMode],
@@ -523,7 +527,11 @@ export function useChat(
 
         // Handle auto-titling if needed
         let finalTitle = activeConversation?.title;
-        if (messages.length === 0 && storageMode === "local" && fullContent) {
+        if (
+          messages.length === 0 &&
+          (storageMode === "local" || storageMode === "temporary") &&
+          fullContent
+        ) {
           try {
             const res = await fetch("/api/title", {
               method: "POST",
@@ -563,7 +571,7 @@ export function useChat(
 
         // --- BACKGROUND COMPLETION TOAST ---
         // Use the current storageModeRef to check if the mode has changed during streaming (e.g. chat was saved)
-        showBackgroundCompletionToast(storageModeRef.current, conversationId, finalTitle);
+        showBackgroundCompletionToast(storageMode, conversationId, finalTitle);
       } catch (e) {
         if (e instanceof Error && e.name === "AbortError") {
           console.log("[sendMessage] Aborted background stream");

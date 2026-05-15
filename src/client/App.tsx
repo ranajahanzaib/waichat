@@ -1,3 +1,4 @@
+import { HatGlasses, SquarePen } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import ChatInput from "./components/ChatInput";
 import ConfirmModal from "./components/ConfirmModal";
@@ -98,13 +99,6 @@ export default function App() {
 
   const isTemporaryChat = storageMode === "temporary";
 
-  const handleStorageToggle = useCallback((next: StorageMode) => {
-    setStorageMode(next);
-    setSavedStorageMode(next); // Sync saved mode when manually toggled
-    localStorage.setItem(STORAGE_MODE_KEY, next);
-    setStorageDropdownOpen(false);
-  }, []);
-
   const { transferState, initiateMove, executeMove, cancelMove, retryPendingCloudDeletes } =
     useTransfer();
 
@@ -121,6 +115,9 @@ export default function App() {
         localStorage.getItem("waichat:sync-system-prompt")) === "true",
   );
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [tempExpiry, setTempExpiry] = useState(
+    () => localStorage.getItem("waichat:temp-expiry") || "1h",
+  );
 
   const {
     conversations,
@@ -145,19 +142,17 @@ export default function App() {
     streamingConversationId,
     streamingStorageMode,
   } = useChat(storageMode, pendingSelectionRef, (mode) => {
-    if (mode === "temporary") {
-      handleTemporaryChat();
-    } else {
-      handleStorageToggle(mode);
-    }
+    handleStorageToggle(mode);
   });
 
-  const handleTemporaryChat = useCallback(async () => {
-    setStorageMode("temporary");
-    setSidebarOpen(false);
-    await newConversation(defaultModel, "temporary");
-    setInputValue(newChatDraft); // Restore the new chat draft
-  }, [newConversation, defaultModel, newChatDraft]);
+  const handleStorageToggle = useCallback((next: StorageMode) => {
+    setStorageMode(next);
+    if (next !== "temporary") {
+      setSavedStorageMode(next);
+      localStorage.setItem(STORAGE_MODE_KEY, next);
+    }
+    setStorageDropdownOpen(false);
+  }, []);
 
   const handleEndTemporaryChat = useCallback(async () => {
     stopGeneration();
@@ -184,55 +179,97 @@ export default function App() {
 
     try {
       const targetMode = savedStorageMode;
-      const targetStorage = createStorage(targetMode);
 
-      // We already have the data in scope from useChat
-      const data = {
-        conversation: { ...activeConversation },
-        messages: [...messages],
-      };
+      if (targetMode === "local") {
+        // Just promote within LocalStorage
+        const conversations = JSON.parse(
+          localStorage.getItem("waichat:conversations") ?? "[]",
+        ) as Conversation[];
+        const updated = conversations.map((c) =>
+          c.id === activeConversation.id ? { ...c, is_temporary: false, expires_at: undefined } : c,
+        );
+        localStorage.setItem("waichat:conversations", JSON.stringify(updated));
+        setStorageMode("local");
+        toast.success("Chat saved to Local Workspace");
+      } else {
+        // Migrate to Cloud
+        const targetStorage = createStorage("cloud");
+        const data = {
+          conversation: { ...activeConversation },
+          messages: [...messages],
+        };
 
-      // Generate a title if it's still default
-      const isDefaultTitle =
-        data.conversation.title === "New Chat" ||
-        data.conversation.title === "New Conversation" ||
-        !data.conversation.title;
+        await targetStorage.importConversation(data.conversation, data.messages);
 
-      if (isDefaultTitle && data.messages.length > 0) {
-        const firstUserMsg = data.messages.find((m) => m.role === "user");
-        if (firstUserMsg) {
-          try {
-            const titleRes = await fetch("/api/title", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ message: firstUserMsg.content }),
-            });
-            const titleData = (await titleRes.json()) as { title?: string };
-            data.conversation.title =
-              titleData.title || generateFallbackTitle(firstUserMsg.content);
-          } catch (err) {
-            data.conversation.title = generateFallbackTitle(firstUserMsg.content);
-          }
-        }
+        // Delete the temporary one from local
+        const local = createStorage("temporary");
+        await local.deleteConversation(activeConversation.id);
+
+        setStorageMode("cloud");
+        toast.success("Chat saved to Cloud Workspace");
       }
-
-      // Import into target
-      await targetStorage.importConversation(data.conversation, data.messages);
-
-      // Switch mode and select
-      pendingSelectionRef.current = data.conversation.id;
-      handleStorageToggle(targetMode);
 
       if (window.innerWidth >= MOBILE_BREAKPOINT) {
         setSidebarOpen(true);
       }
-
-      toast.success(`Chat saved to ${targetMode === "cloud" ? "Cloud" : "Local"}`);
     } catch (err) {
       console.error("Failed to save temporary chat:", err);
       toast.error("Failed to save chat");
     }
-  }, [activeConversation, messages, savedStorageMode, handleStorageToggle, toast]);
+  }, [activeConversation, messages, savedStorageMode, toast]);
+
+  // Temporary Chat Expiration Cleanup
+  useEffect(() => {
+    const cleanup = async (isInitial = false) => {
+      const conversations = JSON.parse(
+        localStorage.getItem("waichat:conversations") ?? "[]",
+      ) as Conversation[];
+      const now = Date.now();
+
+      const expiryDurations = {
+        "1h": 60 * 60 * 1000,
+        "6h": 6 * 60 * 60 * 1000,
+        "24h": 24 * 60 * 60 * 1000,
+      };
+
+      const expired = conversations.filter((c) => {
+        if (!c.is_temporary) return false;
+
+        // 1. Handle "Instant" - delete on session start or when setting is activated
+        if (tempExpiry === "instant") {
+          return isInitial;
+        }
+
+        // 2. Handle Duration-based - check against current setting and creation date
+        const duration = expiryDurations[tempExpiry as keyof typeof expiryDurations] || 3600000;
+        const createdAt = c.created_at || now;
+        return createdAt + duration < now;
+      });
+
+      if (expired.length > 0) {
+        const expiredIds = new Set(expired.map((c) => c.id));
+        const toKeep = conversations.filter((c) => !expiredIds.has(c.id));
+        localStorage.setItem("waichat:conversations", JSON.stringify(toKeep));
+
+        for (const conv of expired) {
+          localStorage.removeItem(`waichat:messages:${conv.id}`);
+          localStorage.removeItem(`waichat:versions:${conv.id}`);
+        }
+
+        // If the active conversation was deleted, clear it
+        if (activeConversation && expiredIds.has(activeConversation.id)) {
+          clearConversation();
+        }
+
+        // Reload conversations to sync sidebar
+        loadConversations();
+      }
+    };
+
+    cleanup(true);
+    const interval = setInterval(() => cleanup(false), 60000);
+    return () => clearInterval(interval);
+  }, [loadConversations, tempExpiry, activeConversation?.id, selectConversation]);
 
   const isStreamingHere =
     isStreaming &&
@@ -485,8 +522,9 @@ export default function App() {
     await loadConversations();
   };
 
-  const handleMoveConversation = async (conversationId: string) => {
-    const targetMode: StorageMode = storageMode === "cloud" ? "local" : "cloud";
+  const handleMoveConversation = async (conversationId: string, forcedTargetMode?: StorageMode) => {
+    const targetMode: StorageMode =
+      forcedTargetMode || (storageMode === "cloud" ? "local" : "cloud");
 
     try {
       // Prefetch the source data
@@ -495,7 +533,10 @@ export default function App() {
       // Execute the move
       const movedId = await executeMove(storageMode, targetMode);
 
-      toast.success(`Chat moved to ${targetMode === "cloud" ? "Cloud" : "Local"} successfully!`);
+      const actionText = storageMode === "temporary" ? "saved" : "moved";
+      toast.success(
+        `Chat ${actionText} to ${targetMode === "cloud" ? "Cloud" : "Local"} successfully!`,
+      );
 
       // If the moved conversation was the active one, clear it
       if (activeConversation?.id === conversationId) {
@@ -692,7 +733,9 @@ export default function App() {
           onMove={handleMoveConversation}
           onRename={renameConversation}
           onSettingsOpen={() => setSettingsOpen(true)}
+          onModeChange={handleStorageToggle}
           currentMode={storageMode}
+          tempExpiry={tempExpiry}
           savedMode={savedStorageMode}
           streamingConversationId={streamingConversationId}
           streamingStorageMode={streamingStorageMode}
@@ -700,57 +743,10 @@ export default function App() {
         />
 
         <main className="flex flex-col flex-1 min-w-0 h-full relative">
-          {/* TEMPORARY CHAT BANNER */}
-          {isTemporaryChat && (
-            <div className="flex items-center justify-between px-6 py-3 bg-slate-500/10 dark:bg-slate-500/20 backdrop-blur-md border-b border-slate-500/30 animate-in fade-in slide-in-from-top duration-500 z-10 shadow-[0_4px_12px_-4px_rgba(100,116,139,0.1)]">
-              <div className="flex items-center gap-3 text-slate-700 dark:text-slate-300">
-                <div className="w-8 h-8 rounded-lg bg-slate-500/20 flex items-center justify-center">
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="w-5 h-5"
-                  >
-                    <path d="M9 10h.01" />
-                    <path d="M15 10h.01" />
-                    <path d="M12 2a8 8 0 0 0-8 8v12l3-3 2.5 2.5L12 19l2.5 2.5L17 19l3 3V10a8 8 0 0 0-8-8z" />
-                  </svg>
-                </div>
-                <div>
-                  <h3 className="text-xs md:text-sm font-bold tracking-tight leading-none mb-0.5">
-                    Temporary Session
-                  </h3>
-                  <p className="text-[10px] md:text-[11px] opacity-70 font-medium">
-                    Messages are in-memory and won't be saved unless you click save.
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={handleSaveTemporaryChat}
-                  disabled={isStreaming}
-                  className="px-4 py-1.5 bg-slate-700 hover:bg-slate-600 text-white text-[11px] md:text-xs font-bold rounded-lg shadow-lg shadow-slate-500/20 transition-all border border-slate-400/30 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Save Chat
-                </button>
-                <button
-                  onClick={() => !isStreaming && setTempChatConfirmOpen(true)}
-                  disabled={isStreaming}
-                  className="px-4 py-1.5 bg-white/40 dark:bg-white/5 hover:bg-white/60 dark:hover:bg-white/10 text-slate-700 dark:text-slate-300 text-[11px] md:text-xs font-bold rounded-lg border border-slate-500/30 transition-all backdrop-blur-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  End
-                </button>
-              </div>
-            </div>
-          )}
-
           {/* TOPBAR */}
           <header className="flex items-center justify-between px-5 py-4 border-b-[0.5px] border-black/5 dark:border-white/10 shrink-0 transition-colors duration-300">
             <div className="flex items-center gap-3">
-              {!sidebarOpen && !isTemporaryChat && (
+              {!sidebarOpen && (
                 <button
                   onClick={() => setSidebarOpen(true)}
                   className="w-8 h-8 rounded-md flex items-center justify-center text-gray-500 hover:text-gray-900 hover:bg-black/5 dark:text-white/65 dark:hover:text-white/95 dark:hover:bg-white/5 transition-colors focus:outline-none"
@@ -800,11 +796,8 @@ export default function App() {
             <div className="flex items-center gap-3">
               <div className="relative storage-dropdown-container shrink-0">
                 <button
-                  onClick={() => !isTemporaryChat && setStorageDropdownOpen(!storageDropdownOpen)}
-                  disabled={isTemporaryChat}
-                  className={`flex items-center gap-2 bg-black/5 hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10 border-[0.5px] border-black/5 dark:border-white/10 rounded-full px-3 py-1.5 text-gray-700 hover:text-gray-900 dark:text-white/65 dark:hover:text-white/95 text-xs md:text-sm font-medium transition-all focus:outline-none ${
-                    isTemporaryChat ? "cursor-default opacity-80" : "cursor-pointer"
-                  }`}
+                  onClick={() => setStorageDropdownOpen(!storageDropdownOpen)}
+                  className={`flex items-center gap-2 bg-black/5 hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10 border-[0.5px] border-black/5 dark:border-white/10 rounded-full px-3 py-1.5 text-gray-700 hover:text-gray-900 dark:text-white/65 dark:hover:text-white/95 text-xs md:text-sm font-medium transition-all focus:outline-none cursor-pointer`}
                   aria-expanded={storageDropdownOpen}
                 >
                   {isTemporaryChat ? (
@@ -815,11 +808,9 @@ export default function App() {
                     <div className="w-2 h-2 rounded-full bg-brand-local shadow-sm shadow-brand-local/30 dark:shadow-brand-local/50"></div>
                   )}
                   {isTemporaryChat ? "Temporary" : storageMode === "cloud" ? "Cloud" : "Local"}
-                  {!isTemporaryChat && (
-                    <svg className="w-3 h-3 ml-1" viewBox="0 0 12 12" fill="currentColor">
-                      <path d="M6 8L1 3h10z" />
-                    </svg>
-                  )}
+                  <svg className="w-3 h-3 ml-1" viewBox="0 0 12 12" fill="currentColor">
+                    <path d="M6 8L1 3h10z" />
+                  </svg>
                 </button>
 
                 <div
@@ -834,9 +825,7 @@ export default function App() {
                     <button
                       key={mode}
                       role="menuitem"
-                      onClick={() =>
-                        mode === "temporary" ? handleTemporaryChat() : handleStorageToggle(mode)
-                      }
+                      onClick={() => handleStorageToggle(mode)}
                       className={`w-full flex flex-col items-start px-3 py-2.5 text-left rounded-xl transition-all duration-200 cursor-pointer ${
                         storageMode === mode
                           ? mode === "cloud"
@@ -886,44 +875,22 @@ export default function App() {
                 </div>
               </div>
 
-              {!isTemporaryChat && (
-                <div className="flex items-center gap-1.5">
-                  <button
-                    onClick={handleTemporaryChat}
-                    className="w-8 h-8 rounded-md flex items-center justify-center text-gray-500 hover:text-slate-600 hover:bg-slate-50 dark:text-white/65 dark:hover:text-slate-400 dark:hover:bg-slate-500/10 transition-colors focus:outline-none"
-                    title="Temporary Chat"
-                  >
-                    <svg
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      className="w-4.5 h-4.5"
-                    >
-                      <path d="M9 10h.01" />
-                      <path d="M15 10h.01" />
-                      <path d="M12 2a8 8 0 0 0-8 8v12l3-3 2.5 2.5L12 19l2.5 2.5L17 19l3 3V10a8 8 0 0 0-8-8z" />
-                    </svg>
-                  </button>
-                  <button
-                    onClick={() => handleNew(storageMode)}
-                    className="w-8 h-8 rounded-md flex items-center justify-center text-gray-500 hover:text-gray-900 hover:bg-black/5 dark:text-white/65 dark:hover:text-white/95 dark:hover:bg-white/5 transition-colors focus:outline-none"
-                    title="New Chat"
-                  >
-                    <svg
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      className="w-5 h-5 stroke-2"
-                    >
-                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                    </svg>
-                  </button>
-                </div>
-              )}
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => handleStorageToggle("temporary")}
+                  className="w-8 h-8 rounded-md flex items-center justify-center text-gray-500 hover:text-slate-600 hover:bg-slate-50 dark:text-white/65 dark:hover:text-slate-400 dark:hover:bg-slate-500/10 transition-colors focus:outline-none"
+                  title="Temporary Chat"
+                >
+                  <HatGlasses size={18} strokeWidth={2} />
+                </button>
+                <button
+                  onClick={() => handleNew(storageMode)}
+                  className="w-8 h-8 rounded-md flex items-center justify-center text-gray-500 hover:text-gray-900 hover:bg-black/5 dark:text-white/65 dark:hover:text-white/95 dark:hover:bg-white/5 transition-colors focus:outline-none"
+                  title="New Chat"
+                >
+                  <SquarePen size={18} strokeWidth={2} />
+                </button>
+              </div>
             </div>
           </header>
 
@@ -987,6 +954,11 @@ export default function App() {
           theme={theme}
           onThemeChange={setTheme}
           refreshModels={refreshModels}
+          tempExpiry={tempExpiry}
+          onTempExpiryChange={(val) => {
+            setTempExpiry(val);
+            localStorage.setItem("waichat:temp-expiry", val);
+          }}
         />
 
         <ConfirmModal

@@ -23,6 +23,8 @@ interface SettingsModalProps {
   theme: "system" | "light" | "dark";
   onThemeChange: (theme: "system" | "light" | "dark") => void;
   refreshModels: (newModels?: Model[]) => void;
+  tempExpiry: string;
+  onTempExpiryChange: (expiry: string) => void;
 }
 
 interface SecretsStatus {
@@ -48,6 +50,8 @@ export default function SettingsModal({
   theme,
   onThemeChange,
   refreshModels,
+  tempExpiry,
+  onTempExpiryChange,
 }: SettingsModalProps) {
   const toast = useToast();
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -316,7 +320,7 @@ export default function SettingsModal({
                       {/* Storage mode Segmented Control */}
                       <div>
                         <label className="block text-[13px] md:text-sm font-medium text-gray-700 dark:text-white/80 mb-2">
-                          Storage Mode
+                          Default Storage Mode
                         </label>
                         <div className="flex rounded-full bg-black/5 dark:bg-black/20 p-1 border-[0.5px] border-black/5 dark:border-white/10">
                           {(["cloud", "local"] as StorageMode[]).map((mode) => (
@@ -337,6 +341,45 @@ export default function SettingsModal({
                           {draftStorageMode === "cloud"
                             ? "Conversations saved to Cloudflare D1. Persists across devices."
                             : "Conversations saved in your browser. Never leaves your device."}
+                        </p>
+                      </div>
+
+                      {/* Temporary Chat Expiration */}
+                      <div>
+                        <label className="block text-[13px] md:text-sm font-medium text-gray-700 dark:text-white/80 mb-2">
+                          Temporary Chat Expiration
+                        </label>
+                        <div className="flex rounded-full bg-black/5 dark:bg-black/20 p-1 border-[0.5px] border-black/5 dark:border-white/10">
+                          {(["instant", "1h", "6h", "24h"] as const).map((expiry) => (
+                            <button
+                              key={expiry}
+                              onClick={() => {
+                                onTempExpiryChange(expiry);
+                              }}
+                              className={`flex-1 py-1.5 text-[13px] md:text-sm font-medium rounded-full transition-all duration-200 capitalize ${
+                                tempExpiry === expiry
+                                  ? "bg-white dark:bg-white/15 text-gray-900 dark:text-white/95 shadow-sm"
+                                  : "text-gray-500 hover:text-gray-900 hover:bg-black/5 dark:text-white/65 dark:hover:text-white/95 dark:hover:bg-white/5"
+                              }`}
+                            >
+                              {expiry === "instant"
+                                ? "Instant"
+                                : expiry === "1h"
+                                  ? "1 Hour"
+                                  : expiry === "6h"
+                                    ? "6 Hours"
+                                    : "24 Hours"}
+                            </button>
+                          ))}
+                        </div>
+                        <p className="mt-2 text-xs text-gray-500 dark:text-white/40 leading-relaxed">
+                          {tempExpiry === "24h"
+                            ? "Temporary chats expire and are deleted after 24 hours."
+                            : tempExpiry === "6h"
+                              ? "Temporary chats expire and are deleted after 6 hours."
+                              : tempExpiry === "instant"
+                                ? "Temporary chats are deleted as soon as the session ends."
+                                : "Temporary chats expire and are deleted after 1 hour."}
                         </p>
                       </div>
 

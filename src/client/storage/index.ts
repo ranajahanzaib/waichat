@@ -5,6 +5,8 @@ export interface Conversation {
   created_at: number;
   updated_at: number;
   import_complete?: number | null;
+  is_temporary?: boolean;
+  expires_at?: number;
 }
 
 export interface Message {
@@ -36,26 +38,22 @@ export interface StorageAdapter {
     id: string,
   ): Promise<{ conversation: Conversation; messages: Message[] } | null>;
   importConversation(conversation: Conversation, messages: Message[]): Promise<void>;
+  clear?(): Promise<void>;
 }
 
 export type StorageMode = "cloud" | "local" | "temporary";
 
 import { CloudStorage } from "./cloud";
 import { LocalStorage } from "./local";
-import { MemoryStorage } from "./memory";
-
-export { CloudStorage } from "./cloud";
-export { LocalStorage } from "./local";
-export { MemoryStorage } from "./memory";
 
 export function createStorage(mode: StorageMode): StorageAdapter {
   switch (mode) {
     case "cloud":
       return new CloudStorage();
     case "local":
-      return new LocalStorage();
+      return new LocalStorage(false);
     case "temporary":
-      return new MemoryStorage();
+      return new LocalStorage(true);
     default:
       throw new Error(`Unknown storage mode: ${mode}`);
   }

@@ -134,4 +134,9 @@ export class MemoryStorage implements StorageAdapter {
     this.conversations.push(conversation);
     this.messages.set(conversation.id, [...messages]);
   }
+
+  async clear(): Promise<void> {
+    this.conversations = [];
+    this.messages.clear();
+  }
 }

@@ -1,3 +1,4 @@
+import { ArrowUpRight, Cloud, Database, HatGlasses, Loader2, Pencil, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Conversation, StorageMode } from "../storage";
 import ConfirmModal from "./ConfirmModal";
@@ -10,10 +11,12 @@ interface SidebarProps {
   onSelect: (id: string) => void;
   onNew: (mode?: StorageMode) => void;
   onDelete: (id: string) => void;
-  onMove: (id: string) => void;
+  onMove: (id: string, targetMode?: StorageMode) => void;
   onRename: (id: string, title: string) => Promise<void>;
   onSettingsOpen: () => void;
+  onModeChange: (mode: StorageMode) => void;
   currentMode: StorageMode;
+  tempExpiry: string;
   savedMode: StorageMode;
   streamingConversationId: string | null;
   streamingStorageMode: StorageMode | null;
@@ -31,7 +34,9 @@ export default function Sidebar({
   onMove,
   onRename,
   onSettingsOpen,
+  onModeChange,
   currentMode,
+  tempExpiry,
   savedMode, // Kept in props to satisfy the interface and App.tsx
   streamingConversationId,
   streamingStorageMode,
@@ -39,6 +44,7 @@ export default function Sidebar({
 }: SidebarProps) {
   const [pendingDelete, setPendingDelete] = useState<Conversation | null>(null);
   const [pendingMove, setPendingMove] = useState<Conversation | null>(null);
+  const [pendingMoveTarget, setPendingMoveTarget] = useState<StorageMode | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
@@ -155,7 +161,11 @@ export default function Sidebar({
     <>
       <aside
         className={`absolute md:relative z-30 flex flex-col w-[280px] h-full bg-white/60 dark:bg-[#141416]/60 border-r-[0.5px] border-r-black/10 dark:border-r-white/10 border-l-[3px] shrink-0 transition-all duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${
-          currentMode === "cloud" ? "border-l-brand-cloud" : "border-l-brand-local"
+          currentMode === "cloud"
+            ? "border-l-brand-cloud"
+            : currentMode === "temporary"
+              ? "border-l-slate-500"
+              : "border-l-brand-local"
         } ${
           isOpen
             ? "translate-x-0"
@@ -179,29 +189,43 @@ export default function Sidebar({
           </button>
         </div>
 
-        {/* Workspace Storage Switcher (Pill Tabs) */}
-        <div className="px-4 pb-4">
+        {/* Workspace Storage Switcher (3 Pill Tabs) */}
+        <div className="px-4 pb-3">
           <div className="flex rounded-full bg-black/5 dark:bg-black/20 p-1 border-[0.5px] border-black/5 dark:border-white/10">
-            {(["cloud", "local"] as StorageMode[]).map((mode) => (
+            {(["cloud", "local", "temporary"] as StorageMode[]).map((mode) => (
               <button
                 key={mode}
                 onClick={() => {
-                  if (currentMode !== mode) onNew(mode);
+                  if (currentMode !== mode) onModeChange(mode);
                 }}
-                className={`flex-1 py-1.5 text-[13px] md:text-sm font-medium rounded-full transition-all duration-200 ${
+                className={`flex-1 py-1.5 rounded-full transition-all duration-200 flex items-center justify-center gap-1.5 ${
                   currentMode === mode
                     ? mode === "cloud"
                       ? "bg-brand-cloud text-white shadow-sm cursor-default"
-                      : "bg-brand-local text-gray-900 shadow-sm cursor-default"
+                      : mode === "temporary"
+                        ? "bg-slate-500 text-white shadow-sm cursor-default"
+                        : "bg-brand-local text-gray-900 shadow-sm cursor-default"
                     : "text-gray-500 hover:text-gray-900 hover:bg-black/5 dark:text-white/65 dark:hover:text-white/95 dark:hover:bg-white/5 cursor-pointer"
                 }`}
                 title={
                   currentMode === mode
-                    ? `${mode === "cloud" ? "Cloud" : "Local"} Workspace`
-                    : `Switch to ${mode === "cloud" ? "Cloud" : "Local"} Workspace`
+                    ? `${mode.charAt(0).toUpperCase() + mode.slice(1)} Workspace`
+                    : `Switch to ${mode.charAt(0).toUpperCase() + mode.slice(1)} Workspace`
                 }
               >
-                {mode === "cloud" ? "Cloud" : "Local"}
+                {mode === "cloud" && (
+                  <>
+                    <Cloud size={14} strokeWidth={2.5} />
+                    <span className="text-[11px] font-bold tracking-tight">Cloud</span>
+                  </>
+                )}
+                {mode === "local" && (
+                  <>
+                    <Database size={14} strokeWidth={2.5} />
+                    <span className="text-[11px] font-bold tracking-tight">Local</span>
+                  </>
+                )}
+                {mode === "temporary" && <HatGlasses size={16} strokeWidth={2.5} />}
               </button>
             ))}
           </div>
@@ -209,8 +233,21 @@ export default function Sidebar({
 
         <nav className="flex-1 overflow-y-auto px-2 pb-2 space-y-1 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-black/10 dark:[&::-webkit-scrollbar-thumb]:bg-white/10 [&::-webkit-scrollbar-thumb]:rounded-full">
           {conversations.length > 0 && (
-            <div className="px-4 py-3 pb-2 text-[11px] md:text-xs font-medium text-gray-500 dark:text-white/40 uppercase tracking-wider">
-              Recent
+            <div className="px-4 py-3 pb-2 text-[10px] md:text-[11px] font-semibold text-gray-400 dark:text-white/30 tracking-[0.05em]">
+              {currentMode === "temporary" ? (
+                <span>
+                  Chats auto-expire{" "}
+                  {tempExpiry === "24h"
+                    ? "within 24 hours"
+                    : tempExpiry === "6h"
+                      ? "within 6 hours"
+                      : tempExpiry === "instant"
+                        ? "instantly"
+                        : "within 1 hour"}
+                </span>
+              ) : (
+                <span className="uppercase text-[11px]">Recent</span>
+              )}
             </div>
           )}
           {conversations.length === 0 && (
@@ -234,7 +271,9 @@ export default function Sidebar({
                   activeId === c.id
                     ? currentMode === "cloud"
                       ? "bg-brand-cloud text-white font-medium"
-                      : "bg-brand-local text-gray-900 font-medium"
+                      : currentMode === "temporary"
+                        ? "bg-slate-500 text-white font-medium"
+                        : "bg-brand-local text-gray-900 font-medium"
                     : `${
                         openMenuId === c.id
                           ? "bg-black/8 dark:bg-white/10 text-gray-900 dark:text-white"
@@ -371,66 +410,58 @@ export default function Sidebar({
                       className="w-full flex items-center gap-2 px-3 py-2 text-left text-[13px] text-gray-700 dark:text-white/80 hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                       role="menuitem"
                     >
-                      <svg
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        className="w-3.5 h-3.5"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth="2"
-                          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                        />
-                      </svg>
+                      <Pencil size={14} />
                       Rename
                     </button>
                     <div className="h-[0.5px] bg-black/5 dark:bg-white/10 mx-2 my-1" />
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setOpenMenuId(null);
-                        if (!isMoveDisabled) setPendingMove(c);
-                      }}
-                      disabled={isMoveDisabled}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-left text-[13px] text-gray-700 dark:text-white/80 hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                      role="menuitem"
-                    >
-                      {isMoving ? (
-                        <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
-                          <circle
-                            cx="12"
-                            cy="12"
-                            r="10"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            opacity="0.25"
-                          />
-                          <path
-                            d="M4 12a8 8 0 018-8"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                          />
-                        </svg>
-                      ) : (
-                        <svg
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          className="w-3.5 h-3.5"
+                    {c.is_temporary ? (
+                      <>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOpenMenuId(null);
+                            setPendingMoveTarget("cloud");
+                            setPendingMove(c);
+                          }}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-left text-[13px] text-gray-700 dark:text-white/80 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                          role="menuitem"
                         >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth="2"
-                            d="M7 17L17 7M17 7H8M17 7v9"
-                          />
-                        </svg>
-                      )}
-                      Move Chat to {targetMode === "cloud" ? "Cloud" : "Local"}
-                    </button>
+                          <Cloud size={14} />
+                          Save Chat to Cloud
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOpenMenuId(null);
+                            setPendingMoveTarget("local");
+                            setPendingMove(c);
+                          }}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-left text-[13px] text-gray-700 dark:text-white/80 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                          role="menuitem"
+                        >
+                          <Database size={14} />
+                          Save Chat to Local
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpenMenuId(null);
+                          if (!isMoveDisabled) onMove(c.id);
+                        }}
+                        disabled={isMoveDisabled}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-left text-[13px] text-gray-700 dark:text-white/80 hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        role="menuitem"
+                      >
+                        {isMoving ? (
+                          <Loader2 size={14} className="animate-spin" />
+                        ) : (
+                          <ArrowUpRight size={14} />
+                        )}
+                        Move Chat to {targetMode === "cloud" ? "Cloud" : "Local"}
+                      </button>
+                    )}
                     <div className="h-[0.5px] bg-black/5 dark:bg-white/10 mx-2 my-1" />
                     <button
                       onClick={(e) => {
@@ -442,19 +473,7 @@ export default function Sidebar({
                       className="w-full flex items-center gap-2 px-3 py-2 text-left text-[13px] text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                       role="menuitem"
                     >
-                      <svg
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        className="w-3.5 h-3.5"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth="2"
-                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                        />
-                      </svg>
+                      <Trash2 size={14} />
                       Delete
                     </button>
                   </div>
@@ -509,19 +528,39 @@ export default function Sidebar({
 
       <ConfirmModal
         open={pendingMove !== null}
-        title={`Move to ${targetMode === "cloud" ? "Cloud" : "Local"}?`}
+        title={`${pendingMove?.is_temporary ? "Save" : "Move"} to ${
+          pendingMoveTarget
+            ? pendingMoveTarget === "cloud"
+              ? "Cloud"
+              : "Local"
+            : targetMode === "cloud"
+              ? "Cloud"
+              : "Local"
+        }?`}
         description={
           pendingMove
-            ? `"${pendingMove.title}" will be moved to ${targetMode === "cloud" ? "Cloud (D1)" : "Local (Browser)"} storage and removed from ${currentMode === "cloud" ? "Cloud" : "Local"}.`
+            ? pendingMove.is_temporary
+              ? `"${pendingMove.title}" will be saved to ${
+                  (pendingMoveTarget || targetMode) === "cloud" ? "Cloud (D1)" : "Local (Browser)"
+                } storage.`
+              : `"${pendingMove.title}" will be moved to ${
+                  targetMode === "cloud" ? "Cloud (D1)" : "Local (Browser)"
+                } storage and removed from ${currentMode === "cloud" ? "Cloud" : "Local"}.`
             : ""
         }
-        confirmLabel="Move"
+        confirmLabel={pendingMove?.is_temporary ? "Save" : "Move"}
         variant="neutral"
         onConfirm={() => {
-          if (pendingMove) onMove(pendingMove.id);
+          if (pendingMove) {
+            onMove(pendingMove.id, pendingMoveTarget || undefined);
+          }
           setPendingMove(null);
+          setPendingMoveTarget(null);
         }}
-        onCancel={() => setPendingMove(null)}
+        onCancel={() => {
+          setPendingMove(null);
+          setPendingMoveTarget(null);
+        }}
       />
     </>
   );

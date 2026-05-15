@@ -2,8 +2,11 @@ import type { Conversation, DeleteMessageResult, Message, StorageAdapter } from 
 
 const CONVERSATIONS_KEY = "waichat:conversations";
 const MESSAGES_KEY = (id: string) => `waichat:messages:${id}`;
+const TEMP_EXPIRY_KEY = "waichat:temp-expiry";
 
 export class LocalStorage implements StorageAdapter {
+  constructor(private isTemporary: boolean = false) {}
+
   private getConversationsRaw(): Conversation[] {
     try {
       return JSON.parse(localStorage.getItem(CONVERSATIONS_KEY) ?? "[]");
@@ -29,7 +32,9 @@ export class LocalStorage implements StorageAdapter {
   }
 
   async getConversations(): Promise<Conversation[]> {
-    return this.getConversationsRaw().sort((a, b) => b.updated_at - a.updated_at);
+    return this.getConversationsRaw()
+      .filter((c) => (this.isTemporary ? !!c.is_temporary : !c.is_temporary))
+      .sort((a, b) => b.updated_at - a.updated_at);
   }
 
   async getConversation(
@@ -43,17 +48,48 @@ export class LocalStorage implements StorageAdapter {
 
   async createConversation(model: string): Promise<Conversation> {
     const now = Date.now();
+    const expirySetting = localStorage.getItem(TEMP_EXPIRY_KEY) || "1h";
+    let expires_at: number | undefined;
+
+    if (this.isTemporary) {
+      if (expirySetting === "24h") {
+        expires_at = now + 24 * 60 * 60 * 1000;
+      } else if (expirySetting === "6h") {
+        expires_at = now + 6 * 60 * 60 * 1000;
+      } else if (expirySetting === "instant") {
+        expires_at = now;
+      } else {
+        // Default to 1h
+        expires_at = now + 60 * 60 * 1000;
+      }
+    }
+
     const conversation: Conversation = {
       id: crypto.randomUUID(),
       title: "New Chat",
       model,
       created_at: now,
       updated_at: now,
+      is_temporary: this.isTemporary,
+      expires_at,
     };
     const conversations = this.getConversationsRaw();
     conversations.push(conversation);
     this.setConversations(conversations);
     return conversation;
+  }
+
+  async clear(): Promise<void> {
+    const conversations = this.getConversationsRaw();
+    const toDelete = conversations.filter((c) => c.is_temporary);
+    const toKeep = conversations.filter((c) => !c.is_temporary);
+
+    for (const conv of toDelete) {
+      localStorage.removeItem(MESSAGES_KEY(conv.id));
+      localStorage.removeItem(`waichat:versions:${conv.id}`);
+    }
+
+    this.setConversations(toKeep);
   }
 
   async deleteConversation(id: string): Promise<void> {
