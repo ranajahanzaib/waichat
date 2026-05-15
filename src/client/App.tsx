@@ -185,7 +185,12 @@ export default function App() {
       };
 
       // Generate a title if it's still default
-      if (data.conversation.title === "New Chat" && data.messages.length > 0) {
+      const isDefaultTitle =
+        data.conversation.title === "New Chat" ||
+        data.conversation.title === "New Conversation" ||
+        !data.conversation.title;
+
+      if (isDefaultTitle && data.messages.length > 0) {
         const firstUserMsg = data.messages.find((m) => m.role === "user");
         if (firstUserMsg) {
           try {

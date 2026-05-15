@@ -41,13 +41,13 @@ export class CloudStorage implements StorageAdapter {
   }
 
   async saveMessage(msg: Omit<Message, "id" | "created_at"> & { id?: string }): Promise<Message> {
-    const res = await fetch(`/api/conversations/${msg.conversation_id}/messages`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(msg),
-    });
-    if (!res.ok) throw new Error("Failed to save message to cloud");
-    return res.json();
+    // Cloudflare Worker handles saving messages server-side during the /api/chat stream.
+    // Making a manual POST here would be redundant and impact performance.
+    return {
+      ...msg,
+      id: msg.id || crypto.randomUUID(),
+      created_at: Date.now(),
+    } as Message;
   }
 
   async updateConversationTitle(id: string, title: string): Promise<void> {
