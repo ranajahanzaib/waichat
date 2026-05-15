@@ -36,7 +36,7 @@ export default function App() {
 
   const [pendingPrompt, setPendingPrompt] = useState("");
   const [inputValue, setInputValue] = useState("");
-  const [newChatDraft, setNewChatDraft] = useState("");
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const root = window.document.documentElement;
@@ -153,31 +153,47 @@ export default function App() {
     handleStorageToggle(mode);
   });
 
-  // Temporary Chat Expiration Cleanup
+  const activeConversationIdRef = useRef<string | null>(null);
   useEffect(() => {
-    const cleanup = async (isInitial = false) => {
+    activeConversationIdRef.current = activeConversation?.id || null;
+  }, [activeConversation?.id]);
+
+  // Initial Temporary Chat Cleanup (only on mount)
+  useEffect(() => {
+    const runInitialCleanup = async () => {
       const storage = createStorage("temporary");
       if (storage.cleanup) {
-        const expiredIds = await storage.cleanup(tempExpiry, isInitial);
+        const expiredIds = await storage.cleanup(tempExpiry, true);
+        if (expiredIds.length > 0) {
+          loadConversations();
+        }
+      }
+    };
+    runInitialCleanup();
+  }, []); // Only on mount
 
+  // Recurring Temporary Chat Cleanup
+  useEffect(() => {
+    const runCleanup = async () => {
+      const storage = createStorage("temporary");
+      if (storage.cleanup) {
+        const expiredIds = await storage.cleanup(tempExpiry, false);
         if (expiredIds.length > 0) {
           const expiredIdsSet = new Set(expiredIds);
-
-          // If the active conversation was deleted, clear it
-          if (activeConversation && expiredIdsSet.has(activeConversation.id)) {
+          if (
+            activeConversationIdRef.current &&
+            expiredIdsSet.has(activeConversationIdRef.current)
+          ) {
             clearConversation();
           }
-
-          // Reload conversations to sync sidebar
           loadConversations();
         }
       }
     };
 
-    cleanup(true);
-    const interval = setInterval(() => cleanup(false), 60000);
+    const interval = setInterval(runCleanup, 60000);
     return () => clearInterval(interval);
-  }, [loadConversations, tempExpiry, activeConversation?.id, clearConversation]);
+  }, [loadConversations, tempExpiry, clearConversation]);
 
   const isStreamingHere =
     isStreaming &&
@@ -327,11 +343,21 @@ export default function App() {
   };
 
   const handleSelectConversation = (id: string) => {
+    // Save current input to its draft key
+    const currentKey = activeConversation?.id || "new";
+    setDrafts((prev) => ({ ...prev, [currentKey]: inputValue }));
+
     selectConversation(id);
+    // Load draft for the target conversation
+    setInputValue(drafts[id] || "");
     closeSidebarOnMobile();
   };
 
   const handleNew = async (targetMode?: StorageMode) => {
+    // Save current input draft before switching
+    const currentKey = activeConversation?.id || "new";
+    setDrafts((prev) => ({ ...prev, [currentKey]: inputValue }));
+
     const finalMode = targetMode ?? storageMode;
     if (finalMode !== storageMode) {
       handleStorageToggle(finalMode);
@@ -343,9 +369,10 @@ export default function App() {
         closeSidebarOnMobile();
         return;
       }
-      await newConversation(defaultModel, finalMode);
+      clearConversation();
+      window.history.pushState({}, "", "/");
     }
-    setInputValue(newChatDraft); // Restore the new chat draft
+    setInputValue(drafts["new"] || ""); // Restore the new chat draft
     closeSidebarOnMobile();
   };
 
@@ -359,20 +386,17 @@ export default function App() {
       await sendMessage(content, currentModel, activeConversation.id, storageMode, systemPrompt);
     }
     setInputValue("");
-    if (!activeConversation) {
-      setNewChatDraft(""); // Clear draft once sent in a new chat
-    }
+    const key = activeConversation?.id || "new";
+    setDrafts((prev) => ({ ...prev, [key]: "" }));
   };
 
   const handleInputChange = useCallback(
     (val: string) => {
       setInputValue(val);
-      // If we're in a new chat, update the draft
-      if (!activeConversation) {
-        setNewChatDraft(val);
-      }
+      const key = activeConversation?.id || "new";
+      setDrafts((prev) => ({ ...prev, [key]: val }));
     },
-    [activeConversation],
+    [activeConversation?.id],
   );
 
   const handleDefaultModelChange = async (m: string, sync: boolean = syncSettings) => {

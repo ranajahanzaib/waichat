@@ -520,9 +520,8 @@ export function useChat(
         );
 
         // Save whatever we got (full or partial) - skip for Cloud as worker already saves
-        const finalStorageMode = storageModeRef.current;
-        if (finalStorageMode !== "cloud") {
-          const finalStorage = createStorage(finalStorageMode);
+        if (storageMode !== "cloud") {
+          const finalStorage = createStorage(storageMode);
           await finalStorage.saveMessage(userMessage);
           await finalStorage.saveMessage({ ...assistantMessage, content: fullContent });
         }

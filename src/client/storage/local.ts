@@ -101,7 +101,7 @@ export class LocalStorage implements StorageAdapter {
     let messages = this.getMessagesRaw(msg.conversation_id);
     const existingIndex = messages.findIndex((m) => m.id === message.id);
     if (existingIndex >= 0) {
-      messages[existingIndex] = message;
+      messages[existingIndex] = { ...message, created_at: messages[existingIndex].created_at };
     } else {
       messages.push(message);
     }
@@ -202,7 +202,12 @@ export class LocalStorage implements StorageAdapter {
         return isInitial;
       }
 
-      // 2. Handle Duration-based - check against current setting and last activity
+      // 2. Handle Duration-based
+      // Priority: 1. Specific expires_at (set at creation) 2. Calculated via current global setting + activity
+      if (c.expires_at) {
+        return c.expires_at < now;
+      }
+
       const duration = expiryDurations[expirySetting] || 3600000;
       const lastActivity = c.updated_at || c.created_at || now;
       return lastActivity + duration < now;
