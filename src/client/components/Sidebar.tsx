@@ -1,4 +1,13 @@
-import { ArrowUpRight, Cloud, Database, HatGlasses, Loader2, Pencil, Trash2 } from "lucide-react";
+import {
+  ArrowUpRight,
+  ChevronDown,
+  Cloud,
+  Database,
+  HatGlasses,
+  Loader2,
+  Pencil,
+  Trash2,
+} from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Conversation, StorageMode } from "../storage";
 import ConfirmModal from "./ConfirmModal";
@@ -17,6 +26,7 @@ interface SidebarProps {
   onModeChange: (mode: StorageMode) => void;
   currentMode: StorageMode;
   tempExpiry: string;
+  onTempExpiryChange: (value: string) => void;
   savedMode: StorageMode;
   streamingConversationId: string | null;
   streamingStorageMode: StorageMode | null;
@@ -37,11 +47,13 @@ export default function Sidebar({
   onModeChange,
   currentMode,
   tempExpiry,
+  onTempExpiryChange,
   savedMode, // Kept in props to satisfy the interface and App.tsx
   streamingConversationId,
   streamingStorageMode,
   movingConversationId,
 }: SidebarProps) {
+  const [expiryDropdownOpen, setExpiryDropdownOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Conversation | null>(null);
   const [pendingMove, setPendingMove] = useState<Conversation | null>(null);
   const [pendingMoveTarget, setPendingMoveTarget] = useState<StorageMode | null>(null);
@@ -232,24 +244,63 @@ export default function Sidebar({
         </div>
 
         <nav className="flex-1 overflow-y-auto px-2 pb-2 space-y-1 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-black/10 dark:[&::-webkit-scrollbar-thumb]:bg-white/10 [&::-webkit-scrollbar-thumb]:rounded-full">
-          {conversations.length > 0 && (
-            <div className="px-4 py-3 pb-2 text-[10px] md:text-[11px] font-semibold text-gray-400 dark:text-white/30 tracking-[0.05em]">
-              {currentMode === "temporary" ? (
-                <span>
-                  Chats auto-expire{" "}
-                  {tempExpiry === "24h"
-                    ? "within 24 hours"
-                    : tempExpiry === "6h"
-                      ? "within 6 hours"
-                      : tempExpiry === "instant"
-                        ? "instantly"
-                        : "within 1 hour"}
-                </span>
-              ) : (
-                <span className="uppercase text-[11px]">Recent</span>
-              )}
-            </div>
-          )}
+          <div className="px-4 py-3 pb-2 text-[10px] md:text-[11px] font-semibold text-gray-400 dark:text-white/30 tracking-[0.05em] flex items-center justify-between">
+            {currentMode === "temporary" ? (
+              <div className="flex items-center gap-1.5 w-full relative group">
+                <span className="flex-shrink-0">Chats auto-expire</span>
+                <div className="relative inline-block text-left">
+                  <button
+                    onClick={() => setExpiryDropdownOpen(!expiryDropdownOpen)}
+                    className="flex items-center gap-0.5 px-1.5 py-0.5 -mx-1 rounded hover:bg-black/5 dark:hover:bg-white/5 transition-colors text-gray-500 dark:text-white/50 hover:text-gray-900 dark:hover:text-white font-bold"
+                  >
+                    {tempExpiry === "24h"
+                      ? "within 24 hours"
+                      : tempExpiry === "6h"
+                        ? "within 6 hours"
+                        : tempExpiry === "instant"
+                          ? "instantly"
+                          : "within 1 hour"}
+                    <ChevronDown className="w-3 h-3 opacity-50" />
+                  </button>
+
+                  {expiryDropdownOpen && (
+                    <>
+                      <div
+                        className="fixed inset-0 z-10"
+                        onClick={() => setExpiryDropdownOpen(false)}
+                      />
+                      <div className="absolute left-0 mt-1 w-32 rounded-lg bg-white dark:bg-[#1a1a1a] shadow-xl border border-black/5 dark:border-white/10 z-20 py-1 overflow-hidden backdrop-blur-xl">
+                        {(["instant", "1h", "6h", "24h"] as const).map((option) => (
+                          <button
+                            key={option}
+                            onClick={() => {
+                              onTempExpiryChange(option);
+                              setExpiryDropdownOpen(false);
+                            }}
+                            className={`w-full text-left px-3 py-1.5 text-[11px] font-medium transition-colors ${
+                              tempExpiry === option
+                                ? "bg-black/5 dark:bg-white/5 text-gray-900 dark:text-white"
+                                : "text-gray-500 dark:text-white/40 hover:text-gray-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5"
+                            }`}
+                          >
+                            {option === "instant"
+                              ? "Instantly"
+                              : option === "1h"
+                                ? "1 Hour"
+                                : option === "6h"
+                                  ? "6 Hours"
+                                  : "24 Hours"}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            ) : (
+              conversations.length > 0 && <span className="uppercase text-[11px]">Recent</span>
+            )}
+          </div>
           {conversations.length === 0 && (
             <p className="text-sm text-gray-500 dark:text-white/40 text-center mt-10">
               No conversations yet

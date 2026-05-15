@@ -1,7 +1,6 @@
 import { HatGlasses, SquarePen } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import ChatInput from "./components/ChatInput";
-import ConfirmModal from "./components/ConfirmModal";
 import MessageList from "./components/MessageList";
 import ModelPicker from "./components/ModelPicker";
 import SettingsModal from "./components/SettingsModal";
@@ -22,10 +21,6 @@ const SYNC_SETTINGS_KEY = "waichat:sync-settings";
 const DEFAULT_MODEL_KEY = "waichat:default-model";
 export const THEME_KEY = "waichat:theme";
 const MOBILE_BREAKPOINT = 768;
-
-const generateFallbackTitle = (content: string) => {
-  return content.split(" ").slice(0, 5).join(" ") + (content.split(" ").length > 5 ? "..." : "");
-};
 
 export type ThemeMode = "system" | "light" | "dark";
 
@@ -95,7 +90,6 @@ export default function App() {
 
   const pendingSelectionRef = useRef<string | null>(null);
   const [storageDropdownOpen, setStorageDropdownOpen] = useState(false);
-  const [tempChatConfirmOpen, setTempChatConfirmOpen] = useState(false);
 
   const isTemporaryChat = storageMode === "temporary";
 
@@ -118,6 +112,15 @@ export default function App() {
   const [tempExpiry, setTempExpiry] = useState(
     () => localStorage.getItem("waichat:temp-expiry") || "1h",
   );
+
+  const handleStorageToggle = useCallback((next: StorageMode) => {
+    setStorageMode(next);
+    if (next !== "temporary") {
+      setSavedStorageMode(next);
+      localStorage.setItem(STORAGE_MODE_KEY, next);
+    }
+    setStorageDropdownOpen(false);
+  }, []);
 
   const {
     conversations,
@@ -145,35 +148,6 @@ export default function App() {
     handleStorageToggle(mode);
   });
 
-  const handleStorageToggle = useCallback((next: StorageMode) => {
-    setStorageMode(next);
-    if (next !== "temporary") {
-      setSavedStorageMode(next);
-      localStorage.setItem(STORAGE_MODE_KEY, next);
-    }
-    setStorageDropdownOpen(false);
-  }, []);
-
-  const handleEndTemporaryChat = useCallback(async () => {
-    stopGeneration();
-    if (activeConversation) {
-      await deleteConversation(activeConversation.id);
-    }
-    setStorageMode(savedStorageMode);
-    clearConversation();
-    setTempChatConfirmOpen(false);
-    setSidebarOpen(true);
-    setInputValue("");
-    toast.success("Temporary session ended");
-  }, [
-    stopGeneration,
-    deleteConversation,
-    activeConversation,
-    savedStorageMode,
-    clearConversation,
-    toast,
-  ]);
-
   const handleSaveTemporaryChat = useCallback(async () => {
     if (!activeConversation) return;
 
@@ -181,14 +155,8 @@ export default function App() {
       const targetMode = savedStorageMode;
 
       if (targetMode === "local") {
-        // Just promote within LocalStorage
-        const conversations = JSON.parse(
-          localStorage.getItem("waichat:conversations") ?? "[]",
-        ) as Conversation[];
-        const updated = conversations.map((c) =>
-          c.id === activeConversation.id ? { ...c, is_temporary: false, expires_at: undefined } : c,
-        );
-        localStorage.setItem("waichat:conversations", JSON.stringify(updated));
+        const local = createStorage("local");
+        await local.importConversation(activeConversation, messages);
         setStorageMode("local");
         toast.success("Chat saved to Local Workspace");
       } else {
@@ -705,6 +673,10 @@ export default function App() {
           onModeChange={handleStorageToggle}
           currentMode={storageMode}
           tempExpiry={tempExpiry}
+          onTempExpiryChange={(val) => {
+            setTempExpiry(val);
+            localStorage.setItem("waichat:temp-expiry", val);
+          }}
           savedMode={savedStorageMode}
           streamingConversationId={streamingConversationId}
           streamingStorageMode={streamingStorageMode}
@@ -928,16 +900,6 @@ export default function App() {
             setTempExpiry(val);
             localStorage.setItem("waichat:temp-expiry", val);
           }}
-        />
-
-        <ConfirmModal
-          open={tempChatConfirmOpen}
-          title="End temporary chat?"
-          description="Your messages in this session will be permanently deleted and cannot be recovered."
-          confirmLabel="End Chat"
-          variant="destructive"
-          onConfirm={handleEndTemporaryChat}
-          onCancel={() => setTempChatConfirmOpen(false)}
         />
       </div>
       <ToastContainer />
