@@ -1,4 +1,5 @@
 import { strToU8, zipSync } from "fflate";
+import type { SystemPrompt } from "../App";
 import type { Conversation, Message } from "../storage";
 
 export function convertToChatGPTFormat(conversations: Conversation[], messages: Message[]) {
@@ -87,6 +88,7 @@ export async function exportWorkspace(
     local?: { conversations: Conversation[]; messages: Message[] };
     cloud?: { conversations: Conversation[]; messages: Message[] };
     settings: Record<string, string>;
+    systemPrompts?: SystemPrompt[];
   },
 ) {
   const manifest = {
@@ -100,7 +102,7 @@ export async function exportWorkspace(
   const zipData: Record<string, Uint8Array> = {
     "manifest.json": strToU8(JSON.stringify(manifest, null, 2)),
     "settings.json": strToU8(JSON.stringify(data.settings, null, 2)),
-    "custom_prompts.json": strToU8(JSON.stringify([], null, 2)),
+    "custom_prompts.json": strToU8(JSON.stringify(data.systemPrompts ?? [], null, 2)),
     "model_configs.json": strToU8(JSON.stringify([], null, 2)),
     "attachments/.placeholder": strToU8(""),
   };

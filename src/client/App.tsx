@@ -312,12 +312,16 @@ export default function App() {
         });
         await Promise.all(
           localOnlyOrModified.map(async (p) => {
-            const postRes = await fetch("/api/system-prompts", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ id: p.id, name: p.name, content: p.content, created_at: p.created_at, updated_at: p.updated_at }),
-            });
-            if (!postRes.ok) throw new Error(`Failed to sync prompt: ${p.name}`);
+            try {
+              const postRes = await fetch("/api/system-prompts", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id: p.id, name: p.name, content: p.content, created_at: p.created_at, updated_at: p.updated_at }),
+              });
+              if (!postRes.ok) throw new Error(`Failed to sync prompt: ${p.name}`);
+            } catch (err) {
+              console.error(err);
+            }
           }),
         );
         if (!active) return;
@@ -629,21 +633,22 @@ export default function App() {
   };
 
   const handleDeleteSystemPrompt = async (id: string) => {
-    if (syncSettings) {
-      try {
-        const res = await fetch(`/api/system-prompts/${id}`, { method: "DELETE" });
-        if (!res.ok) throw new Error("Failed to delete prompt");
-      } catch (err) {
-        console.error("Failed to delete system prompt:", err);
-        throw err;
-      }
-    }
+    // Update local state immediately so the UI is responsive and works offline
     setSystemPrompts((prev) => {
       const updated = prev.filter((p) => p.id !== id);
       savePromptsLocally(updated);
       return updated;
     });
     if (selectedPromptId === id) setSelectedPromptId(null);
+
+    if (syncSettings) {
+      try {
+        const res = await fetch(`/api/system-prompts/${id}`, { method: "DELETE" });
+        if (!res.ok) throw new Error("Failed to delete prompt");
+      } catch (err) {
+        console.error("Failed to delete system prompt:", err);
+      }
+    }
   };
 
   const handleClearConversations = async (mode: StorageMode) => {
@@ -692,10 +697,12 @@ export default function App() {
         local?: { conversations: Conversation[]; messages: Message[] };
         cloud?: { conversations: Conversation[]; messages: Message[] };
         settings: Record<string, string>;
+        systemPrompts?: SystemPrompt[];
       } = {
         settings: {
           default_model: localStorage.getItem(DEFAULT_MODEL_KEY) || "",
         },
+        systemPrompts: systemPrompts,
       };
 
       if (scope === "cloud" || scope === "both") {
@@ -814,6 +821,15 @@ export default function App() {
       if (data.settings) {
         if (data.settings.default_model) {
           await handleDefaultModelChange(data.settings.default_model, syncSettings);
+        }
+      }
+
+      // Restore system prompt library if present
+      if (data.systemPrompts && Array.isArray(data.systemPrompts) && data.systemPrompts.length > 0) {
+        const existingIds = new Set(systemPrompts.map((p) => p.id));
+        const toImport = (data.systemPrompts as SystemPrompt[]).filter((p) => !existingIds.has(p.id));
+        for (const p of toImport) {
+          await handleAddSystemPrompt(p.name, p.content);
         }
       }
 

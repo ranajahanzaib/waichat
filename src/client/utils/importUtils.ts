@@ -1,4 +1,5 @@
 import { strFromU8, unzipSync } from "fflate";
+import type { SystemPrompt } from "../App";
 import type { Conversation, Message } from "../storage";
 
 const MAX_COMPRESSED_SIZE = 50 * 1024 * 1024; // 50MB
@@ -10,6 +11,7 @@ export interface ImportResult {
   cloud?: { conversations: Conversation[]; messages: Message[] };
   external?: { conversations: Conversation[]; messages: Message[] };
   settings?: Record<string, string>;
+  systemPrompts?: SystemPrompt[];
 }
 
 export async function parseImportFile(file: File): Promise<ImportResult> {
@@ -122,6 +124,18 @@ export async function parseImportFile(file: File): Promise<ImportResult> {
       result.settings = JSON.parse(strFromU8(unzipped[settingsKey]));
     } catch (e) {
       console.error("Failed to parse settings.json", e);
+    }
+  }
+
+  const promptsKey = keys.find((k) => k.endsWith("custom_prompts.json"));
+  if (isWaiChat && promptsKey) {
+    try {
+      const parsed = JSON.parse(strFromU8(unzipped[promptsKey]));
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        result.systemPrompts = parsed as SystemPrompt[];
+      }
+    } catch (e) {
+      console.error("Failed to parse custom_prompts.json", e);
     }
   }
 
