@@ -586,6 +586,7 @@ export default function SettingsModal({
                                 type="text"
                                 value={editName}
                                 onChange={(e) => setEditName(e.target.value)}
+                                maxLength={100}
                                 className="w-full text-[13px] bg-black/5 dark:bg-black/20 border-[0.5px] border-black/10 dark:border-white/10 rounded-lg px-3 py-2 text-gray-900 dark:text-white/95 outline-none focus:border-[#0A84FF] transition-colors"
                                 placeholder="Prompt name"
                               />
@@ -593,6 +594,7 @@ export default function SettingsModal({
                                 value={editContent}
                                 onChange={(e) => setEditContent(e.target.value)}
                                 rows={4}
+                                maxLength={10000}
                                 className="w-full text-[13px] bg-black/5 dark:bg-black/20 border-[0.5px] border-black/10 dark:border-white/10 rounded-lg px-3 py-2 text-gray-900 dark:text-white/95 placeholder:text-gray-400 dark:placeholder:text-white/30 outline-none focus:border-[#0A84FF] transition-colors resize-none"
                                 placeholder="Prompt content..."
                               />
@@ -678,6 +680,7 @@ export default function SettingsModal({
                         type="text"
                         value={newPromptName}
                         onChange={(e) => setNewPromptName(e.target.value)}
+                        maxLength={100}
                         placeholder="Name (e.g. Code Reviewer)"
                         className="w-full text-[13px] bg-black/5 dark:bg-black/20 border-[0.5px] border-black/10 dark:border-white/10 rounded-xl px-3 py-2.5 text-gray-900 dark:text-white/95 placeholder:text-gray-400 dark:placeholder:text-white/30 outline-none focus:border-[#0A84FF] focus:bg-white dark:focus:bg-black/30 transition-colors"
                       />
@@ -686,6 +689,7 @@ export default function SettingsModal({
                         onChange={(e) => setNewPromptContent(e.target.value)}
                         placeholder="You are a helpful assistant..."
                         rows={5}
+                        maxLength={10000}
                         className="w-full text-base md:text-sm bg-black/5 dark:bg-black/20 border-[0.5px] border-black/10 dark:border-white/10 rounded-xl px-4 py-3 text-gray-900 dark:text-white/95 placeholder:text-gray-400 dark:placeholder:text-white/30 outline-none focus:border-[#0A84FF] focus:bg-white dark:focus:bg-black/30 transition-colors resize-none [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-black/10 dark:[&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full"
                       />
                       <button

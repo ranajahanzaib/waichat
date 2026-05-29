@@ -255,20 +255,24 @@ export default function App() {
         const localPrompts: SystemPrompt[] = stored ? JSON.parse(stored) : [];
         const localOnly = localPrompts.filter((p) => !cloudIds.has(p.id));
         await Promise.all(
-          localOnly.map((p) =>
-            fetch("/api/system-prompts", {
+          localOnly.map(async (p) => {
+            const postRes = await fetch("/api/system-prompts", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ id: p.id, name: p.name, content: p.content, created_at: p.created_at }),
-            }),
-          ),
+            });
+            if (!postRes.ok) throw new Error(`Failed to sync prompt: ${p.name}`);
+          }),
         );
         if (!active) return;
 
         // Re-fetch the merged list from cloud
         const merged =
           localOnly.length > 0
-            ? await fetch("/api/system-prompts").then((r) => r.json() as Promise<SystemPrompt[]>)
+            ? await fetch("/api/system-prompts").then((r) => {
+                if (!r.ok) throw new Error("Failed to fetch merged prompts");
+                return r.json() as Promise<SystemPrompt[]>;
+              })
             : cloudPrompts;
         if (!active) return;
 

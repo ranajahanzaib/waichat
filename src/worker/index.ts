@@ -314,7 +314,10 @@ app.get("/api/export", async (c) => {
 });
 
 app.post("/api/conversations", async (c) => {
-  const body = await c.req.json<{ model: string; system_prompt_id?: string }>();
+  const body = await c.req.json<{ model: string; system_prompt_id?: string }>().catch(() => null);
+  if (!body || typeof body.model !== "string" || !body.model.trim()) {
+    return c.json({ error: "Model is required and must be a non-empty string" }, 400);
+  }
   const now = Date.now();
   const conversation: import("./types").Conversation = {
     id: crypto.randomUUID(),
