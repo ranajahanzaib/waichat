@@ -1,3 +1,2 @@
-ALTER TABLE system_prompts ADD COLUMN updated_at INTEGER;
-
-UPDATE system_prompts SET updated_at = created_at WHERE updated_at IS NULL;
+-- updated_at is now included in 0008_add_system_prompts.sql.
+-- This migration is a no-op kept for environments that applied 0008 before it was consolidated.
