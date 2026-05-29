@@ -554,11 +554,11 @@ app.post("/api/system-prompts", async (c) => {
     return c.json({ error: "Content must be 10000 characters or less" }, 400);
   }
   const prompt: SystemPrompt = {
-    id: crypto.randomUUID(),
+    id: typeof body.id === "string" && body.id ? body.id : crypto.randomUUID(),
     user_id: "default",
     name,
     content,
-    created_at: Date.now(),
+    created_at: typeof body.created_at === "number" ? body.created_at : Date.now(),
   };
   await c.env.DB.prepare(
     "INSERT INTO system_prompts (id, user_id, name, content, created_at) VALUES (?, ?, ?, ?, ?)",

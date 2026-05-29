@@ -159,8 +159,15 @@ export default function App() {
     activeConversationIdRef.current = activeConversation?.id || null;
   }, [activeConversation?.id]);
 
-  // Reset selected prompt when switching or creating conversations to prevent leakage
+  const isCreatingConversationRef = useRef(false);
+
+  // Reset selected prompt when switching conversations, but preserve it for
+  // the null → new-id transition that happens when sending the first message.
   useEffect(() => {
+    if (isCreatingConversationRef.current) {
+      isCreatingConversationRef.current = false;
+      return;
+    }
     setSelectedPromptId(null);
   }, [activeConversation?.id]);
 
@@ -241,14 +248,16 @@ export default function App() {
         const cloudPrompts = (await res.json()) as SystemPrompt[];
         const cloudIds = new Set(cloudPrompts.map((p) => p.id));
 
-        // Upload any local prompts that don't exist in the cloud yet
-        const localOnly = systemPrompts.filter((p) => !cloudIds.has(p.id));
+        // Read local prompts directly from storage to avoid stale closure
+        const stored = localStorage.getItem(SYSTEM_PROMPTS_KEY);
+        const localPrompts: SystemPrompt[] = stored ? JSON.parse(stored) : [];
+        const localOnly = localPrompts.filter((p) => !cloudIds.has(p.id));
         await Promise.all(
           localOnly.map((p) =>
             fetch("/api/system-prompts", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ name: p.name, content: p.content }),
+              body: JSON.stringify({ id: p.id, name: p.name, content: p.content, created_at: p.created_at }),
             }),
           ),
         );
@@ -434,6 +443,7 @@ export default function App() {
     if (isStreaming) return;
     const currentModel = activeConversation?.model ?? defaultModel;
     if (!activeConversation) {
+      isCreatingConversationRef.current = true;
       const convo = await newConversation(defaultModel, storageMode);
       await sendMessage(content, defaultModel, convo.id, storageMode, effectiveSystemPrompt);
     } else {
@@ -493,9 +503,11 @@ export default function App() {
         });
         if (!res.ok) throw new Error("Failed to save prompt");
         const prompt = (await res.json()) as SystemPrompt;
-        const updated = [...systemPrompts, prompt];
-        setSystemPrompts(updated);
-        savePromptsLocally(updated);
+        setSystemPrompts((prev) => {
+          const updated = [...prev, prompt];
+          savePromptsLocally(updated);
+          return updated;
+        });
       } catch (err) {
         console.error("Failed to add system prompt:", err);
         throw err;
@@ -508,9 +520,11 @@ export default function App() {
         content,
         created_at: Date.now(),
       };
-      const updated = [...systemPrompts, prompt];
-      setSystemPrompts(updated);
-      savePromptsLocally(updated);
+      setSystemPrompts((prev) => {
+        const updated = [...prev, prompt];
+        savePromptsLocally(updated);
+        return updated;
+      });
     }
   };
 
@@ -528,9 +542,11 @@ export default function App() {
         throw err;
       }
     }
-    const updated = systemPrompts.map((p) => (p.id === id ? { ...p, name, content } : p));
-    setSystemPrompts(updated);
-    savePromptsLocally(updated);
+    setSystemPrompts((prev) => {
+      const updated = prev.map((p) => (p.id === id ? { ...p, name, content } : p));
+      savePromptsLocally(updated);
+      return updated;
+    });
   };
 
   const handleDeleteSystemPrompt = async (id: string) => {
@@ -543,9 +559,11 @@ export default function App() {
         throw err;
       }
     }
-    const updated = systemPrompts.filter((p) => p.id !== id);
-    setSystemPrompts(updated);
-    savePromptsLocally(updated);
+    setSystemPrompts((prev) => {
+      const updated = prev.filter((p) => p.id !== id);
+      savePromptsLocally(updated);
+      return updated;
+    });
     if (selectedPromptId === id) setSelectedPromptId(null);
   };
 
