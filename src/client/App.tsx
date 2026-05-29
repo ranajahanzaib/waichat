@@ -597,12 +597,13 @@ export default function App() {
   };
 
   const handleUpdateSystemPrompt = async (id: string, name: string, content: string) => {
+    const now = Date.now();
     if (syncSettings) {
       try {
         const res = await fetch(`/api/system-prompts/${id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name, content }),
+          body: JSON.stringify({ name, content, updated_at: now }),
         });
         if (!res.ok) throw new Error("Failed to update prompt");
       } catch (err) {
@@ -612,7 +613,7 @@ export default function App() {
     }
     setSystemPrompts((prev) => {
       const updated = prev.map((p) =>
-        p.id === id ? { ...p, name, content, updated_at: Date.now() } : p,
+        p.id === id ? { ...p, name, content, updated_at: now } : p,
       );
       savePromptsLocally(updated);
       return updated;

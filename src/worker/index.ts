@@ -626,8 +626,9 @@ app.patch("/api/system-prompts/:id", async (c) => {
   }
   if (updates.length === 0) return c.json({ error: "Nothing to update" }, 400);
 
+  const updatedAt = typeof body.updated_at === "number" ? body.updated_at : Date.now();
   updates.push("updated_at = ?");
-  params.push(Date.now());
+  params.push(updatedAt);
   params.push(id);
   await c.env.DB.prepare(`UPDATE system_prompts SET ${updates.join(", ")} WHERE id = ?`)
     .bind(...params)
