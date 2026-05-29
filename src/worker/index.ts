@@ -3,7 +3,6 @@ import { cors } from "hono/cors";
 import { AVAILABLE_MODELS, generateTitle, streamAiResponse } from "./ai";
 import { getModelNotice, isModelExcluded } from "./config/model-exclusions";
 import {
-  createConversation,
   deleteConversation,
   deleteSetting,
   getConversation,
@@ -315,16 +314,28 @@ app.get("/api/export", async (c) => {
 });
 
 app.post("/api/conversations", async (c) => {
-  const body = await c.req.json<{ model: string }>();
+  const body = await c.req.json<{ model: string; system_prompt_id?: string }>();
   const now = Date.now();
-  const conversation = {
+  const conversation: import("./types").Conversation = {
     id: crypto.randomUUID(),
     title: "New Conversation",
     model: body.model,
     created_at: now,
     updated_at: now,
+    system_prompt_id: body.system_prompt_id ?? null,
   };
-  await createConversation(c.env.DB, conversation);
+  await c.env.DB.prepare(
+    "INSERT INTO conversations (id, title, model, created_at, updated_at, system_prompt_id) VALUES (?, ?, ?, ?, ?, ?)",
+  )
+    .bind(
+      conversation.id,
+      conversation.title,
+      conversation.model,
+      conversation.created_at,
+      conversation.updated_at,
+      conversation.system_prompt_id,
+    )
+    .run();
   return c.json(conversation, 201);
 });
 
@@ -561,7 +572,7 @@ app.post("/api/system-prompts", async (c) => {
     created_at: typeof body.created_at === "number" ? body.created_at : Date.now(),
   };
   await c.env.DB.prepare(
-    "INSERT INTO system_prompts (id, user_id, name, content, created_at) VALUES (?, ?, ?, ?, ?)",
+    "INSERT INTO system_prompts (id, user_id, name, content, created_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET name = excluded.name, content = excluded.content, created_at = excluded.created_at",
   )
     .bind(prompt.id, prompt.user_id, prompt.name, prompt.content, prompt.created_at)
     .run();

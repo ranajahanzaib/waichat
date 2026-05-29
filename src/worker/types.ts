@@ -13,6 +13,7 @@ export interface Conversation {
   created_at: number;
   updated_at: number;
   import_complete?: number | null;
+  system_prompt_id?: string | null;
 }
 
 export interface Message {

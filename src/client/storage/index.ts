@@ -7,6 +7,7 @@ export interface Conversation {
   import_complete?: number | null;
   is_temporary?: boolean;
   expires_at?: number;
+  system_prompt_id?: string | null;
 }
 
 export interface Message {
@@ -28,7 +29,7 @@ export interface DeleteMessageResult {
 export interface StorageAdapter {
   getConversations(): Promise<Conversation[]>;
   getConversation(id: string): Promise<{ conversation: Conversation; messages: Message[] } | null>;
-  createConversation(model: string): Promise<Conversation>;
+  createConversation(model: string, systemPromptId?: string | null): Promise<Conversation>;
   deleteConversation(id: string): Promise<void>;
   updateConversationModel(id: string, model: string): Promise<void>;
   saveMessage(message: Omit<Message, "id" | "created_at"> & { id?: string }): Promise<Message>;

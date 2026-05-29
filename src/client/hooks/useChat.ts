@@ -13,7 +13,7 @@ interface UseChatReturn {
   activeVersions: Record<string, string>;
   loadConversations: () => Promise<void>;
   selectConversation: (id: string) => Promise<void>;
-  newConversation: (model: string, targetMode?: StorageMode) => Promise<Conversation>;
+  newConversation: (model: string, targetMode?: StorageMode, systemPromptId?: string | null) => Promise<Conversation>;
   deleteConversation: (id: string) => Promise<void>;
   updateActiveModel: (model: string) => Promise<void>;
   clearConversation: () => void;
@@ -209,10 +209,10 @@ export function useChat(
   );
 
   const newConversation = useCallback(
-    async (model: string, targetMode?: StorageMode): Promise<Conversation> => {
+    async (model: string, targetMode?: StorageMode, systemPromptId?: string | null): Promise<Conversation> => {
       const mode = targetMode || storageMode;
       const targetStorage = createStorage(mode);
-      const conversation = await targetStorage.createConversation(model);
+      const conversation = await targetStorage.createConversation(model, systemPromptId);
 
       if (mode === storageMode) {
         setConversations((prev) => [conversation, ...prev]);

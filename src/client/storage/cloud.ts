@@ -16,11 +16,11 @@ export class CloudStorage implements StorageAdapter {
     return res.json();
   }
 
-  async createConversation(model: string): Promise<Conversation> {
+  async createConversation(model: string, systemPromptId?: string | null): Promise<Conversation> {
     const res = await fetch("/api/conversations", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model }),
+      body: JSON.stringify({ model, system_prompt_id: systemPromptId ?? null }),
     });
     if (!res.ok) throw new Error("Failed to create conversation");
     return res.json();

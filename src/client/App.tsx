@@ -160,15 +160,34 @@ export default function App() {
   }, [activeConversation?.id]);
 
   const isCreatingConversationRef = useRef(false);
+  const prevActiveIdRef = useRef<string | null | undefined>(undefined);
 
-  // Reset selected prompt when switching conversations, but preserve it for
-  // the null → new-id transition that happens when sending the first message.
+  // When switching to a different existing conversation, restore its system prompt.
+  // When creating a new conversation (null → id), preserve the chosen prompt.
+  // When clearing to a new-chat screen (id → null), reset the prompt.
   useEffect(() => {
-    if (isCreatingConversationRef.current) {
-      isCreatingConversationRef.current = false;
+    const prevId = prevActiveIdRef.current;
+    const nextId = activeConversation?.id ?? null;
+    prevActiveIdRef.current = nextId;
+
+    if (prevId === undefined) {
+      // Initial mount: if we loaded straight into a conversation, restore its prompt
+      if (nextId !== null) {
+        const convo = conversations.find((c) => c.id === nextId);
+        if (convo?.system_prompt_id) setSelectedPromptId(convo.system_prompt_id);
+      }
       return;
     }
-    setSelectedPromptId(null);
+
+    if (isCreatingConversationRef.current) {
+      isCreatingConversationRef.current = false;
+      return; // null → new id: keep the chosen prompt for this session
+    }
+
+    if (nextId === null) {
+      setSelectedPromptId(null); // cleared to new-chat screen
+    }
+    // switching to an existing convo: handleSelectConversation already sets the prompt
   }, [activeConversation?.id]);
 
   const handleTempExpiryChange = useCallback((val: string) => {
@@ -240,12 +259,15 @@ export default function App() {
   // Load system prompts from cloud if sync enabled, merging local-only prompts up first
   useEffect(() => {
     if (!syncSettings) return;
+    let active = true;
 
     const syncPrompts = async () => {
       try {
         const res = await fetch("/api/system-prompts");
         if (!res.ok) throw new Error("Failed to fetch system prompts");
         const cloudPrompts = (await res.json()) as SystemPrompt[];
+        if (!active) return;
+
         const cloudIds = new Set(cloudPrompts.map((p) => p.id));
 
         // Read local prompts directly from storage to avoid stale closure
@@ -261,20 +283,26 @@ export default function App() {
             }),
           ),
         );
+        if (!active) return;
 
         // Re-fetch the merged list from cloud
-        const merged = localOnly.length > 0
-          ? await fetch("/api/system-prompts").then((r) => r.json() as Promise<SystemPrompt[]>)
-          : cloudPrompts;
+        const merged =
+          localOnly.length > 0
+            ? await fetch("/api/system-prompts").then((r) => r.json() as Promise<SystemPrompt[]>)
+            : cloudPrompts;
+        if (!active) return;
 
         setSystemPrompts(merged);
         localStorage.setItem(SYSTEM_PROMPTS_KEY, JSON.stringify(merged));
       } catch (err) {
-        console.error("Cloud sync error (system_prompts):", err);
+        if (active) console.error("Cloud sync error (system_prompts):", err);
       }
     };
 
     syncPrompts();
+    return () => {
+      active = false;
+    };
   }, [syncSettings]);
 
   // Sync Default Model from Cloud if enabled
@@ -408,6 +436,11 @@ export default function App() {
     setDrafts((prev) => ({ ...prev, [currentKey]: inputValue }));
     selectConversation(id);
     setInputValue(nextDraft);
+
+    // Restore the system prompt that was selected when this conversation was created
+    const convo = conversations.find((c) => c.id === id);
+    setSelectedPromptId(convo?.system_prompt_id ?? null);
+
     closeSidebarOnMobile();
   };
 
@@ -444,7 +477,7 @@ export default function App() {
     const currentModel = activeConversation?.model ?? defaultModel;
     if (!activeConversation) {
       isCreatingConversationRef.current = true;
-      const convo = await newConversation(defaultModel, storageMode);
+      const convo = await newConversation(defaultModel, storageMode, selectedPromptId);
       await sendMessage(content, defaultModel, convo.id, storageMode, effectiveSystemPrompt);
     } else {
       await sendMessage(
