@@ -14,6 +14,7 @@ export interface Conversation {
   updated_at: number;
   import_complete?: number | null;
   system_prompt_id?: string | null;
+  system_prompt?: string | null;
 }
 
 export interface Message {

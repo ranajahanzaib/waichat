@@ -248,7 +248,7 @@ export default function App() {
         const cloudPrompts = (await res.json()) as SystemPrompt[];
         if (!active) return;
 
-        const cloudIds = new Set(cloudPrompts.map((p) => p.id));
+        const cloudPromptsMap = new Map(cloudPrompts.map((p) => [p.id, p]));
 
         // Read local prompts directly from storage to avoid stale closure
         let localPrompts: SystemPrompt[] = [];
@@ -259,9 +259,15 @@ export default function App() {
         } catch {
           localPrompts = [];
         }
-        const localOnly = localPrompts.filter((p) => !cloudIds.has(p.id));
+
+        // Upload prompts that are missing from cloud OR have been edited locally
+        const localOnlyOrModified = localPrompts.filter((p) => {
+          const cloud = cloudPromptsMap.get(p.id);
+          if (!cloud) return true;
+          return cloud.name !== p.name || cloud.content !== p.content;
+        });
         await Promise.all(
-          localOnly.map(async (p) => {
+          localOnlyOrModified.map(async (p) => {
             const postRes = await fetch("/api/system-prompts", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -274,7 +280,7 @@ export default function App() {
 
         // Re-fetch the merged list from cloud
         const merged =
-          localOnly.length > 0
+          localOnlyOrModified.length > 0
             ? await fetch("/api/system-prompts").then((r) => {
                 if (!r.ok) throw new Error("Failed to fetch merged prompts");
                 return r.json() as Promise<SystemPrompt[]>;
@@ -454,14 +460,19 @@ export default function App() {
     closeSidebarOnMobile();
   };
 
+  // For an active conversation use its stored snapshot so library edits/deletes
+  // don't silently change the AI's behaviour mid-conversation.
+  // For a new chat (no active conversation) use the currently selected prompt.
   const effectiveSystemPrompt =
-    systemPrompts.find((p) => p.id === selectedPromptId)?.content ?? "";
+    activeConversation?.system_prompt ??
+    systemPrompts.find((p) => p.id === selectedPromptId)?.content ??
+    "";
 
   const handleSend = async (content: string) => {
     if (isStreaming) return;
     const currentModel = activeConversation?.model ?? defaultModel;
     if (!activeConversation) {
-      const convo = await newConversation(defaultModel, storageMode, selectedPromptId);
+      const convo = await newConversation(defaultModel, storageMode, selectedPromptId, effectiveSystemPrompt || null);
       await sendMessage(content, defaultModel, convo.id, storageMode, effectiveSystemPrompt);
     } else {
       await sendMessage(
@@ -583,6 +594,17 @@ export default function App() {
     });
     if (selectedPromptId === id) setSelectedPromptId(null);
   };
+
+  // One-time migration: import legacy global system prompt into the library
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const legacyPrompt = localStorage.getItem("waichat:system-prompt");
+    if (legacyPrompt?.trim()) {
+      handleAddSystemPrompt("Default Prompt", legacyPrompt.trim())
+        .then(() => localStorage.removeItem("waichat:system-prompt"))
+        .catch((err) => console.error("Failed to migrate legacy system prompt:", err));
+    }
+  }, []);
 
   const handleClearConversations = async (mode: StorageMode) => {
     const storage = createStorage(mode);

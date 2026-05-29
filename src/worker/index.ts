@@ -314,7 +314,7 @@ app.get("/api/export", async (c) => {
 });
 
 app.post("/api/conversations", async (c) => {
-  const body = await c.req.json<{ model: string; system_prompt_id?: string }>().catch(() => null);
+  const body = await c.req.json<{ model: string; system_prompt_id?: string; system_prompt?: string }>().catch(() => null);
   if (!body || typeof body.model !== "string" || !body.model.trim()) {
     return c.json({ error: "Model is required and must be a non-empty string" }, 400);
   }
@@ -326,9 +326,10 @@ app.post("/api/conversations", async (c) => {
     created_at: now,
     updated_at: now,
     system_prompt_id: typeof body.system_prompt_id === "string" && body.system_prompt_id.trim() ? body.system_prompt_id.trim() : null,
+    system_prompt: typeof body.system_prompt === "string" && body.system_prompt.trim() ? body.system_prompt.trim() : null,
   };
   await c.env.DB.prepare(
-    "INSERT INTO conversations (id, title, model, created_at, updated_at, system_prompt_id) VALUES (?, ?, ?, ?, ?, ?)",
+    "INSERT INTO conversations (id, title, model, created_at, updated_at, system_prompt_id, system_prompt) VALUES (?, ?, ?, ?, ?, ?, ?)",
   )
     .bind(
       conversation.id,
@@ -337,6 +338,7 @@ app.post("/api/conversations", async (c) => {
       conversation.created_at,
       conversation.updated_at,
       conversation.system_prompt_id,
+      conversation.system_prompt,
     )
     .run();
   return c.json(conversation, 201);
