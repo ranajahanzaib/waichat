@@ -32,6 +32,14 @@ export interface Model {
   notice?: string;
 }
 
+export interface SystemPrompt {
+  id: string;
+  user_id: string;
+  name: string;
+  content: string;
+  created_at: number;
+}
+
 export interface ChatRequest {
   conversation_id: string;
   model: string;

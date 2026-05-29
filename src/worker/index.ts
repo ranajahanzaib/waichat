@@ -18,7 +18,7 @@ import {
   updateConversationTimestamp,
   updateConversationTitle,
 } from "./db";
-import type { ChatRequest, Env, Message, Model } from "./types";
+import type { ChatRequest, Env, Message, Model, SystemPrompt } from "./types";
 
 // Isolate-specific in-memory cache for models
 let modelCache: { data: Model[]; timestamp: number } | null = null;
@@ -528,6 +528,70 @@ app.delete("/api/conversations/:conversationId/messages/:messageId", async (c) =
     console.error("[DELETE /message] error:", e);
     return c.json({ error: "Failed to delete message" }, 500);
   }
+});
+
+// System Prompt Library
+app.get("/api/system-prompts", async (c) => {
+  const prompts = await c.env.DB.prepare(
+    "SELECT id, user_id, name, content, created_at FROM system_prompts ORDER BY created_at ASC",
+  )
+    .all<SystemPrompt>()
+    .then((r) => r.results);
+  return c.json(prompts);
+});
+
+app.post("/api/system-prompts", async (c) => {
+  const { name, content } = await c.req.json<{ name: string; content: string }>();
+  if (!name?.trim() || !content?.trim()) {
+    return c.json({ error: "Name and content are required" }, 400);
+  }
+  const prompt: SystemPrompt = {
+    id: crypto.randomUUID(),
+    user_id: "default",
+    name: name.trim(),
+    content: content.trim(),
+    created_at: Date.now(),
+  };
+  await c.env.DB.prepare(
+    "INSERT INTO system_prompts (id, user_id, name, content, created_at) VALUES (?, ?, ?, ?, ?)",
+  )
+    .bind(prompt.id, prompt.user_id, prompt.name, prompt.content, prompt.created_at)
+    .run();
+  return c.json(prompt, 201);
+});
+
+app.patch("/api/system-prompts/:id", async (c) => {
+  const id = c.req.param("id");
+  const { name, content } = await c.req.json<{ name?: string; content?: string }>();
+
+  const existing = await c.env.DB.prepare("SELECT id FROM system_prompts WHERE id = ?")
+    .bind(id)
+    .first<{ id: string }>();
+  if (!existing) return c.json({ error: "Not found" }, 404);
+
+  const updates: string[] = [];
+  const params: (string | number)[] = [];
+  if (name !== undefined) {
+    updates.push("name = ?");
+    params.push(name.trim());
+  }
+  if (content !== undefined) {
+    updates.push("content = ?");
+    params.push(content.trim());
+  }
+  if (updates.length === 0) return c.json({ error: "Nothing to update" }, 400);
+
+  params.push(id);
+  await c.env.DB.prepare(`UPDATE system_prompts SET ${updates.join(", ")} WHERE id = ?`)
+    .bind(...params)
+    .run();
+  return c.json({ success: true });
+});
+
+app.delete("/api/system-prompts/:id", async (c) => {
+  const id = c.req.param("id");
+  await c.env.DB.prepare("DELETE FROM system_prompts WHERE id = ?").bind(id).run();
+  return c.json({ success: true });
 });
 
 // Settings

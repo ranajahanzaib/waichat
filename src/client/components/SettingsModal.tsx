@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import type { SystemPrompt } from "../App";
 import type { Model } from "../hooks/useModels";
 import { useToast } from "../hooks/useToast";
 import type { StorageMode } from "../storage";
@@ -13,9 +14,11 @@ interface SettingsModalProps {
   onStorageModeChange: (mode: StorageMode) => void;
   defaultModel: string;
   onDefaultModelChange: (model: string, sync: boolean) => void;
-  systemPrompt: string;
+  systemPrompts: SystemPrompt[];
   syncSettings: boolean;
-  onSystemPromptChange: (prompt: string, sync: boolean) => void;
+  onAddSystemPrompt: (name: string, content: string) => Promise<void>;
+  onUpdateSystemPrompt: (id: string, name: string, content: string) => Promise<void>;
+  onDeleteSystemPrompt: (id: string) => Promise<void>;
   models: Model[];
   onClearConversations: (mode: StorageMode) => void;
   onExportWorkspace: (scope: "local" | "cloud" | "both") => Promise<void>;
@@ -40,9 +43,11 @@ export default function SettingsModal({
   onStorageModeChange,
   defaultModel,
   onDefaultModelChange,
-  systemPrompt,
+  systemPrompts,
   syncSettings,
-  onSystemPromptChange,
+  onAddSystemPrompt,
+  onUpdateSystemPrompt,
+  onDeleteSystemPrompt,
   models,
   onClearConversations,
   onExportWorkspace,
@@ -60,8 +65,15 @@ export default function SettingsModal({
   // Local draft state — only committed on Save
   const [draftStorageMode, setDraftStorageMode] = useState<StorageMode>(storageMode);
   const [draftModel, setDraftModel] = useState(defaultModel);
-  const [draftSystemPrompt, setDraftSystemPrompt] = useState(systemPrompt);
   const [draftSyncSettings, setDraftSyncSettings] = useState(syncSettings);
+
+  // Prompt library state
+  const [newPromptName, setNewPromptName] = useState("");
+  const [newPromptContent, setNewPromptContent] = useState("");
+  const [editingPrompt, setEditingPrompt] = useState<SystemPrompt | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editContent, setEditContent] = useState("");
+  const [isSavingPrompt, setIsSavingPrompt] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [exportScope, setExportScope] = useState<"local" | "cloud" | "both">("both");
   const [showExportSelector, setShowExportSelector] = useState(false);
@@ -160,12 +172,14 @@ export default function SettingsModal({
     if (open) {
       setDraftStorageMode(storageMode);
       setDraftModel(defaultModel);
-      setDraftSystemPrompt(systemPrompt);
       setDraftSyncSettings(syncSettings);
       fetchSecretsStatus();
       setActiveTab("general");
+      setNewPromptName("");
+      setNewPromptContent("");
+      setEditingPrompt(null);
     }
-  }, [open, storageMode, defaultModel, systemPrompt, syncSettings]);
+  }, [open, storageMode, defaultModel, syncSettings]);
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -180,7 +194,6 @@ export default function SettingsModal({
   const handleSave = () => {
     onStorageModeChange(draftStorageMode);
     onDefaultModelChange(draftModel, draftSyncSettings);
-    onSystemPromptChange(draftSystemPrompt, draftSyncSettings);
     onClose();
   };
 
@@ -548,22 +561,145 @@ export default function SettingsModal({
               )}
 
               {activeTab === "prompt" && (
-                <section className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-                  <h3 className="text-[11px] md:text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-white/40 mb-4">
-                    System Prompt
-                  </h3>
-                  <div className="space-y-4">
-                    <textarea
-                      value={draftSystemPrompt}
-                      onChange={(e) => setDraftSystemPrompt(e.target.value)}
-                      placeholder="You are a helpful assistant..."
-                      rows={12}
-                      className="w-full text-base md:text-sm bg-black/5 dark:bg-black/20 border-[0.5px] border-black/10 dark:border-white/10 rounded-xl px-4 py-3 text-gray-900 dark:text-white/95 placeholder:text-gray-400 dark:placeholder:text-white/30 outline-none focus:border-[#0A84FF] focus:bg-white dark:focus:bg-black/30 transition-colors resize-none [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-black/10 dark:[&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full"
-                    />
-                    <p className="text-xs text-gray-500 dark:text-white/40 leading-relaxed italic">
-                      This instructions are applied to the start of all new conversations to define
-                      the AI's personality and behavior.
-                    </p>
+                <section className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  <div>
+                    <h3 className="text-[11px] md:text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-white/40 mb-4">
+                      Saved Prompts
+                    </h3>
+
+                    {systemPrompts.length === 0 ? (
+                      <p className="text-[13px] text-gray-400 dark:text-white/30 italic">
+                        No saved prompts yet. Add one below.
+                      </p>
+                    ) : (
+                      <div className="space-y-2">
+                        {systemPrompts.map((prompt) =>
+                          editingPrompt?.id === prompt.id ? (
+                            <div
+                              key={prompt.id}
+                              className="p-3 rounded-xl bg-white/60 dark:bg-white/5 border-[0.5px] border-[#0A84FF]/40 space-y-2"
+                            >
+                              <input
+                                type="text"
+                                value={editName}
+                                onChange={(e) => setEditName(e.target.value)}
+                                className="w-full text-[13px] bg-black/5 dark:bg-black/20 border-[0.5px] border-black/10 dark:border-white/10 rounded-lg px-3 py-2 text-gray-900 dark:text-white/95 outline-none focus:border-[#0A84FF] transition-colors"
+                                placeholder="Prompt name"
+                              />
+                              <textarea
+                                value={editContent}
+                                onChange={(e) => setEditContent(e.target.value)}
+                                rows={4}
+                                className="w-full text-[13px] bg-black/5 dark:bg-black/20 border-[0.5px] border-black/10 dark:border-white/10 rounded-lg px-3 py-2 text-gray-900 dark:text-white/95 placeholder:text-gray-400 dark:placeholder:text-white/30 outline-none focus:border-[#0A84FF] transition-colors resize-none"
+                                placeholder="Prompt content..."
+                              />
+                              <div className="flex gap-2">
+                                <button
+                                  disabled={isSavingPrompt || !editName.trim() || !editContent.trim()}
+                                  onClick={async () => {
+                                    setIsSavingPrompt(true);
+                                    try {
+                                      await onUpdateSystemPrompt(prompt.id, editName, editContent);
+                                      setEditingPrompt(null);
+                                    } catch {
+                                      toast.error("Failed to update prompt");
+                                    } finally {
+                                      setIsSavingPrompt(false);
+                                    }
+                                  }}
+                                  className="text-[11px] font-medium text-white bg-[#0A84FF] hover:bg-[#0070E0] disabled:opacity-50 rounded-full px-3 py-1.5 transition-all focus:outline-none"
+                                >
+                                  {isSavingPrompt ? "Saving..." : "Save"}
+                                </button>
+                                <button
+                                  onClick={() => setEditingPrompt(null)}
+                                  className="text-[11px] font-medium text-gray-600 dark:text-white/60 hover:text-gray-900 dark:hover:text-white/90 rounded-full px-3 py-1.5 transition-all focus:outline-none"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div
+                              key={prompt.id}
+                              className="flex items-start justify-between gap-3 py-3 px-4 rounded-xl bg-white/60 dark:bg-white/5 border-[0.5px] border-black/10 dark:border-white/10"
+                            >
+                              <div className="min-w-0 flex-1">
+                                <p className="text-[13px] md:text-sm font-medium text-gray-900 dark:text-white/95 truncate">
+                                  {prompt.name}
+                                </p>
+                                <p className="text-[11px] md:text-xs text-gray-500 dark:text-white/40 mt-0.5 line-clamp-2">
+                                  {prompt.content}
+                                </p>
+                              </div>
+                              <div className="flex gap-1.5 shrink-0">
+                                <button
+                                  onClick={() => {
+                                    setEditingPrompt(prompt);
+                                    setEditName(prompt.name);
+                                    setEditContent(prompt.content);
+                                  }}
+                                  className="text-[11px] font-medium text-gray-500 dark:text-white/40 hover:text-gray-900 dark:hover:text-white/90 hover:bg-black/5 dark:hover:bg-white/10 rounded-full px-2.5 py-1 transition-all focus:outline-none"
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    if (confirm(`Delete "${prompt.name}"?`)) {
+                                      onDeleteSystemPrompt(prompt.id);
+                                    }
+                                  }}
+                                  className="text-[11px] font-medium text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-full px-2.5 py-1 transition-all focus:outline-none"
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            </div>
+                          ),
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <h3 className="text-[11px] md:text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-white/40 mb-4">
+                      Add Prompt
+                    </h3>
+                    <div className="space-y-3">
+                      <input
+                        type="text"
+                        value={newPromptName}
+                        onChange={(e) => setNewPromptName(e.target.value)}
+                        placeholder="Name (e.g. Code Reviewer)"
+                        className="w-full text-[13px] bg-black/5 dark:bg-black/20 border-[0.5px] border-black/10 dark:border-white/10 rounded-xl px-3 py-2.5 text-gray-900 dark:text-white/95 placeholder:text-gray-400 dark:placeholder:text-white/30 outline-none focus:border-[#0A84FF] focus:bg-white dark:focus:bg-black/30 transition-colors"
+                      />
+                      <textarea
+                        value={newPromptContent}
+                        onChange={(e) => setNewPromptContent(e.target.value)}
+                        placeholder="You are a helpful assistant..."
+                        rows={5}
+                        className="w-full text-base md:text-sm bg-black/5 dark:bg-black/20 border-[0.5px] border-black/10 dark:border-white/10 rounded-xl px-4 py-3 text-gray-900 dark:text-white/95 placeholder:text-gray-400 dark:placeholder:text-white/30 outline-none focus:border-[#0A84FF] focus:bg-white dark:focus:bg-black/30 transition-colors resize-none [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-black/10 dark:[&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full"
+                      />
+                      <button
+                        disabled={isSavingPrompt || !newPromptName.trim() || !newPromptContent.trim()}
+                        onClick={async () => {
+                          setIsSavingPrompt(true);
+                          try {
+                            await onAddSystemPrompt(newPromptName, newPromptContent);
+                            setNewPromptName("");
+                            setNewPromptContent("");
+                            toast.success("Prompt saved!");
+                          } catch {
+                            toast.error("Failed to save prompt");
+                          } finally {
+                            setIsSavingPrompt(false);
+                          }
+                        }}
+                        className="text-[11px] md:text-xs font-medium text-white bg-[#0A84FF] hover:bg-[#0070E0] disabled:opacity-50 disabled:bg-gray-400 rounded-full px-4 py-2 transition-all focus:outline-none"
+                      >
+                        {isSavingPrompt ? "Saving..." : "Add Prompt"}
+                      </button>
+                    </div>
                   </div>
                 </section>
               )}

@@ -16,11 +16,19 @@ import { exportWorkspace } from "./utils/exportUtils";
 import { parseImportFile } from "./utils/importUtils";
 
 const STORAGE_MODE_KEY = "waichat:storage-mode";
-const SYSTEM_PROMPT_KEY = "waichat:system-prompt";
 const SYNC_SETTINGS_KEY = "waichat:sync-settings";
 const DEFAULT_MODEL_KEY = "waichat:default-model";
+const SYSTEM_PROMPTS_KEY = "waichat:system-prompts";
 export const THEME_KEY = "waichat:theme";
 const MOBILE_BREAKPOINT = 768;
+
+export interface SystemPrompt {
+  id: string;
+  user_id: string;
+  name: string;
+  content: string;
+  created_at: number;
+}
 
 export type ThemeMode = "system" | "light" | "dark";
 
@@ -100,9 +108,14 @@ export default function App() {
   const [defaultModel, setDefaultModel] = useState(
     () => localStorage.getItem(DEFAULT_MODEL_KEY) ?? DEFAULT_MODEL_ID,
   );
-  const [systemPrompt, setSystemPrompt] = useState(
-    () => localStorage.getItem(SYSTEM_PROMPT_KEY) ?? "",
-  );
+  const [systemPrompts, setSystemPrompts] = useState<SystemPrompt[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(SYSTEM_PROMPTS_KEY) ?? "[]");
+    } catch {
+      return [];
+    }
+  });
+  const [selectedPromptId, setSelectedPromptId] = useState<string | null>(null);
   const [syncSettings, setSyncSettings] = useState(
     () =>
       (localStorage.getItem(SYNC_SETTINGS_KEY) ??
@@ -210,21 +223,19 @@ export default function App() {
     retryPendingCloudDeletes();
   }, [loadConversations, retryPendingCloudDeletes]);
 
-  // Sync System Prompt from Cloud if enabled
+  // Load system prompts from cloud if sync enabled, otherwise use localStorage
   useEffect(() => {
     if (syncSettings) {
-      fetch("/api/settings/system_prompt")
+      fetch("/api/system-prompts")
         .then((res) => {
-          if (!res.ok) throw new Error("Failed to fetch system prompt");
-          return res.json() as Promise<{ value?: string }>;
+          if (!res.ok) throw new Error("Failed to fetch system prompts");
+          return res.json() as Promise<SystemPrompt[]>;
         })
         .then((data) => {
-          if (data.value != null && data.value !== systemPrompt) {
-            setSystemPrompt(data.value);
-            localStorage.setItem(SYSTEM_PROMPT_KEY, data.value);
-          }
+          setSystemPrompts(data);
+          localStorage.setItem(SYSTEM_PROMPTS_KEY, JSON.stringify(data));
         })
-        .catch((err) => console.error("Cloud sync error (system_prompt):", err));
+        .catch((err) => console.error("Cloud sync error (system_prompts):", err));
     }
   }, [syncSettings]);
 
@@ -387,14 +398,23 @@ export default function App() {
     closeSidebarOnMobile();
   };
 
+  const effectiveSystemPrompt =
+    systemPrompts.find((p) => p.id === selectedPromptId)?.content ?? "";
+
   const handleSend = async (content: string) => {
     if (isStreaming) return;
     const currentModel = activeConversation?.model ?? defaultModel;
     if (!activeConversation) {
       const convo = await newConversation(defaultModel, storageMode);
-      await sendMessage(content, defaultModel, convo.id, storageMode, systemPrompt);
+      await sendMessage(content, defaultModel, convo.id, storageMode, effectiveSystemPrompt);
     } else {
-      await sendMessage(content, currentModel, activeConversation.id, storageMode, systemPrompt);
+      await sendMessage(
+        content,
+        currentModel,
+        activeConversation.id,
+        storageMode,
+        effectiveSystemPrompt,
+      );
     }
     setInputValue("");
     const key = activeConversation?.id || "new";
@@ -430,24 +450,72 @@ export default function App() {
     }
   };
 
-  const handleSystemPromptChange = async (prompt: string, sync: boolean) => {
-    setSystemPrompt(prompt);
-    localStorage.setItem(SYSTEM_PROMPT_KEY, prompt);
+  const savePromptsLocally = (prompts: SystemPrompt[]) => {
+    localStorage.setItem(SYSTEM_PROMPTS_KEY, JSON.stringify(prompts));
+  };
 
-    setSyncSettings(sync);
-    localStorage.setItem(SYNC_SETTINGS_KEY, String(sync));
-
-    if (sync) {
+  const handleAddSystemPrompt = async (name: string, content: string) => {
+    if (syncSettings) {
       try {
-        await fetch("/api/settings/system_prompt", {
+        const res = await fetch("/api/system-prompts", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ value: prompt }),
+          body: JSON.stringify({ name, content }),
         });
+        if (!res.ok) throw new Error("Failed to save prompt");
+        const prompt = (await res.json()) as SystemPrompt;
+        const updated = [...systemPrompts, prompt];
+        setSystemPrompts(updated);
+        savePromptsLocally(updated);
       } catch (err) {
-        console.error("Failed to sync system prompt to cloud:", err);
+        console.error("Failed to add system prompt:", err);
+        throw err;
+      }
+    } else {
+      const prompt: SystemPrompt = {
+        id: crypto.randomUUID(),
+        user_id: "default",
+        name,
+        content,
+        created_at: Date.now(),
+      };
+      const updated = [...systemPrompts, prompt];
+      setSystemPrompts(updated);
+      savePromptsLocally(updated);
+    }
+  };
+
+  const handleUpdateSystemPrompt = async (id: string, name: string, content: string) => {
+    if (syncSettings) {
+      try {
+        const res = await fetch(`/api/system-prompts/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name, content }),
+        });
+        if (!res.ok) throw new Error("Failed to update prompt");
+      } catch (err) {
+        console.error("Failed to update system prompt:", err);
+        throw err;
       }
     }
+    const updated = systemPrompts.map((p) => (p.id === id ? { ...p, name, content } : p));
+    setSystemPrompts(updated);
+    savePromptsLocally(updated);
+  };
+
+  const handleDeleteSystemPrompt = async (id: string) => {
+    if (syncSettings) {
+      try {
+        await fetch(`/api/system-prompts/${id}`, { method: "DELETE" });
+      } catch (err) {
+        console.error("Failed to delete system prompt:", err);
+      }
+    }
+    const updated = systemPrompts.filter((p) => p.id !== id);
+    setSystemPrompts(updated);
+    savePromptsLocally(updated);
+    if (selectedPromptId === id) setSelectedPromptId(null);
   };
 
   const handleClearConversations = async (mode: StorageMode) => {
@@ -498,7 +566,6 @@ export default function App() {
         settings: Record<string, string>;
       } = {
         settings: {
-          system_prompt: localStorage.getItem(SYSTEM_PROMPT_KEY) || "",
           default_model: localStorage.getItem(DEFAULT_MODEL_KEY) || "",
         },
       };
@@ -617,9 +684,6 @@ export default function App() {
 
       // Apply imported settings if they exist
       if (data.settings) {
-        if (data.settings.system_prompt) {
-          await handleSystemPromptChange(data.settings.system_prompt, syncSettings);
-        }
         if (data.settings.default_model) {
           await handleDefaultModelChange(data.settings.default_model, syncSettings);
         }
@@ -831,6 +895,26 @@ export default function App() {
             </div>
           </header>
 
+          {!activeConversation && systemPrompts.length > 0 && (
+            <div className="flex items-center justify-center gap-2 px-5 pt-4 shrink-0">
+              <label className="text-[11px] md:text-xs font-medium text-gray-500 dark:text-white/40 shrink-0">
+                System Prompt
+              </label>
+              <select
+                value={selectedPromptId ?? ""}
+                onChange={(e) => setSelectedPromptId(e.target.value || null)}
+                className="text-[11px] md:text-xs bg-black/5 dark:bg-black/20 border-[0.5px] border-black/10 dark:border-white/10 rounded-full px-3 py-1.5 text-gray-700 dark:text-white/80 outline-none focus:border-[#0A84FF] transition-colors cursor-pointer"
+              >
+                <option value="">None</option>
+                {systemPrompts.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <MessageList
             messages={messages}
             activeBranch={activeBranch}
@@ -842,7 +926,7 @@ export default function App() {
                 messageId,
                 activeConversation?.model ?? defaultModel,
                 storageMode,
-                systemPrompt,
+                effectiveSystemPrompt,
               )
             }
             onEdit={(messageId, content) =>
@@ -853,7 +937,7 @@ export default function App() {
                 content,
                 messageId,
                 storageMode,
-                systemPrompt,
+                effectiveSystemPrompt,
               )
             }
             onDelete={(messageId) => deleteMessage(messageId)}
@@ -881,9 +965,11 @@ export default function App() {
           onStorageModeChange={handleStorageToggle}
           defaultModel={defaultModel}
           onDefaultModelChange={handleDefaultModelChange}
-          systemPrompt={systemPrompt}
+          systemPrompts={systemPrompts}
           syncSettings={syncSettings}
-          onSystemPromptChange={handleSystemPromptChange}
+          onAddSystemPrompt={handleAddSystemPrompt}
+          onUpdateSystemPrompt={handleUpdateSystemPrompt}
+          onDeleteSystemPrompt={handleDeleteSystemPrompt}
           models={models}
           onClearConversations={handleClearConversations}
           onExportWorkspace={handleExportWorkspace}
