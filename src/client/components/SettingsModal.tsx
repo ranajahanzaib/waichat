@@ -76,6 +76,7 @@ export default function SettingsModal({
   const [editName, setEditName] = useState("");
   const [editContent, setEditContent] = useState("");
   const [isSavingPrompt, setIsSavingPrompt] = useState(false);
+  const [isDeletingPromptId, setIsDeletingPromptId] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [exportScope, setExportScope] = useState<"local" | "cloud" | "both">("both");
   const [showExportSelector, setShowExportSelector] = useState(false);
@@ -649,19 +650,23 @@ export default function SettingsModal({
                                   Edit
                                 </button>
                                 <button
+                                  disabled={isDeletingPromptId === prompt.id}
                                   onClick={async () => {
                                     if (confirm(`Delete "${prompt.name}"?`)) {
+                                      setIsDeletingPromptId(prompt.id);
                                       try {
                                         await onDeleteSystemPrompt(prompt.id);
                                         toast.success("Prompt deleted!");
                                       } catch {
                                         toast.error("Failed to delete prompt");
+                                      } finally {
+                                        setIsDeletingPromptId(null);
                                       }
                                     }
                                   }}
-                                  className="text-[11px] font-medium text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-full px-2.5 py-1 transition-all focus:outline-none"
+                                  className="text-[11px] font-medium text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 disabled:opacity-50 rounded-full px-2.5 py-1 transition-all focus:outline-none"
                                 >
-                                  Delete
+                                  {isDeletingPromptId === prompt.id ? "Deleting..." : "Delete"}
                                 </button>
                               </div>
                             </div>

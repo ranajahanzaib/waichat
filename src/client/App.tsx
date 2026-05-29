@@ -28,9 +28,42 @@ export interface SystemPrompt {
   name: string;
   content: string;
   created_at: number;
+  updated_at: number;
 }
 
 export type ThemeMode = "system" | "light" | "dark";
+
+/**
+ * Read system prompts from localStorage, running a one-time migration of the
+ * legacy waichat:system-prompt key if present. Defined outside the component
+ * so it runs once at module load time without any React lifecycle involvement.
+ */
+function readSystemPromptsFromStorage(): SystemPrompt[] {
+  try {
+    const legacyPrompt = localStorage.getItem("waichat:system-prompt");
+    const stored = localStorage.getItem(SYSTEM_PROMPTS_KEY);
+    const parsed = stored ? JSON.parse(stored) : [];
+    let prompts: SystemPrompt[] = Array.isArray(parsed) ? parsed : [];
+
+    if (legacyPrompt?.trim()) {
+      const now = Date.now();
+      const migrated: SystemPrompt = {
+        id: crypto.randomUUID(),
+        user_id: "default",
+        name: "Default Prompt",
+        content: legacyPrompt.trim(),
+        created_at: now,
+        updated_at: now,
+      };
+      prompts = [...prompts, migrated];
+      localStorage.setItem(SYSTEM_PROMPTS_KEY, JSON.stringify(prompts));
+      localStorage.removeItem("waichat:system-prompt");
+    }
+    return prompts;
+  } catch {
+    return [];
+  }
+}
 
 export default function App() {
   const toast = useToast();
@@ -108,30 +141,9 @@ export default function App() {
   const [defaultModel, setDefaultModel] = useState(
     () => localStorage.getItem(DEFAULT_MODEL_KEY) ?? DEFAULT_MODEL_ID,
   );
-  const [systemPrompts, setSystemPrompts] = useState<SystemPrompt[]>(() => {
-    try {
-      const legacyPrompt = localStorage.getItem("waichat:system-prompt");
-      const stored = localStorage.getItem(SYSTEM_PROMPTS_KEY);
-      const parsed = stored ? JSON.parse(stored) : [];
-      let localPrompts: SystemPrompt[] = Array.isArray(parsed) ? parsed : [];
-
-      if (legacyPrompt?.trim()) {
-        const migrated: SystemPrompt = {
-          id: crypto.randomUUID(),
-          user_id: "default",
-          name: "Default Prompt",
-          content: legacyPrompt.trim(),
-          created_at: Date.now(),
-        };
-        localPrompts = [...localPrompts, migrated];
-        localStorage.setItem(SYSTEM_PROMPTS_KEY, JSON.stringify(localPrompts));
-        localStorage.removeItem("waichat:system-prompt");
-      }
-      return localPrompts;
-    } catch {
-      return [];
-    }
-  });
+  const [systemPrompts, setSystemPrompts] = useState<SystemPrompt[]>(
+    () => readSystemPromptsFromStorage(),
+  );
   const [selectedPromptId, setSelectedPromptId] = useState<string | null>(null);
   const [syncSettings, setSyncSettings] = useState(
     () =>
@@ -275,11 +287,12 @@ export default function App() {
           localPrompts = [];
         }
 
-        // Upload prompts that are missing from cloud OR have been edited locally
+        // Upload prompts that are missing from cloud OR are strictly newer locally
+        // (using updated_at to avoid overwriting changes made on other devices)
         const localOnlyOrModified = localPrompts.filter((p) => {
           const cloud = cloudPromptsMap.get(p.id);
           if (!cloud) return true;
-          return cloud.name !== p.name || cloud.content !== p.content;
+          return (p.updated_at ?? p.created_at) > (cloud.updated_at ?? cloud.created_at);
         });
         await Promise.all(
           localOnlyOrModified.map(async (p) => {
@@ -556,12 +569,14 @@ export default function App() {
         throw err;
       }
     } else {
+      const now = Date.now();
       const prompt: SystemPrompt = {
         id: crypto.randomUUID(),
         user_id: "default",
         name,
         content,
-        created_at: Date.now(),
+        created_at: now,
+        updated_at: now,
       };
       setSystemPrompts((prev) => {
         const updated = [...prev, prompt];
@@ -586,7 +601,9 @@ export default function App() {
       }
     }
     setSystemPrompts((prev) => {
-      const updated = prev.map((p) => (p.id === id ? { ...p, name, content } : p));
+      const updated = prev.map((p) =>
+        p.id === id ? { ...p, name, content, updated_at: Date.now() } : p,
+      );
       savePromptsLocally(updated);
       return updated;
     });

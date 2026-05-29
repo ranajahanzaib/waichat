@@ -318,6 +318,13 @@ app.post("/api/conversations", async (c) => {
   if (!body || typeof body.model !== "string" || !body.model.trim()) {
     return c.json({ error: "Model is required and must be a non-empty string" }, 400);
   }
+  const systemPromptContent =
+    typeof body.system_prompt === "string" && body.system_prompt.trim()
+      ? body.system_prompt.trim()
+      : null;
+  if (systemPromptContent && systemPromptContent.length > 10000) {
+    return c.json({ error: "system_prompt must be 10000 characters or less" }, 400);
+  }
   const now = Date.now();
   const conversation: Conversation = {
     id: crypto.randomUUID(),
@@ -326,7 +333,7 @@ app.post("/api/conversations", async (c) => {
     created_at: now,
     updated_at: now,
     system_prompt_id: typeof body.system_prompt_id === "string" && body.system_prompt_id.trim() ? body.system_prompt_id.trim() : null,
-    system_prompt: typeof body.system_prompt === "string" && body.system_prompt.trim() ? body.system_prompt.trim() : null,
+    system_prompt: systemPromptContent,
   };
   await c.env.DB.prepare(
     "INSERT INTO conversations (id, title, model, created_at, updated_at, system_prompt_id, system_prompt) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -549,7 +556,7 @@ app.delete("/api/conversations/:conversationId/messages/:messageId", async (c) =
 // System Prompt Library
 app.get("/api/system-prompts", async (c) => {
   const prompts = await c.env.DB.prepare(
-    "SELECT id, user_id, name, content, created_at FROM system_prompts ORDER BY created_at ASC",
+    "SELECT id, user_id, name, content, created_at, updated_at FROM system_prompts ORDER BY created_at ASC",
   )
     .all<SystemPrompt>()
     .then((r) => r.results);
@@ -569,17 +576,19 @@ app.post("/api/system-prompts", async (c) => {
   if (content.length > 10000) {
     return c.json({ error: "Content must be 10000 characters or less" }, 400);
   }
+  const now = Date.now();
   const prompt: SystemPrompt = {
-    id: typeof body.id === "string" && body.id ? body.id : crypto.randomUUID(),
+    id: typeof body.id === "string" && body.id.trim() && body.id.length <= 36 ? body.id.trim() : crypto.randomUUID(),
     user_id: "default",
     name,
     content,
-    created_at: typeof body.created_at === "number" ? body.created_at : Date.now(),
+    created_at: typeof body.created_at === "number" ? body.created_at : now,
+    updated_at: typeof body.updated_at === "number" ? body.updated_at : now,
   };
   await c.env.DB.prepare(
-    "INSERT INTO system_prompts (id, user_id, name, content, created_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET name = excluded.name, content = excluded.content, created_at = excluded.created_at",
+    "INSERT INTO system_prompts (id, user_id, name, content, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET name = excluded.name, content = excluded.content, updated_at = excluded.updated_at WHERE excluded.updated_at >= system_prompts.updated_at",
   )
-    .bind(prompt.id, prompt.user_id, prompt.name, prompt.content, prompt.created_at)
+    .bind(prompt.id, prompt.user_id, prompt.name, prompt.content, prompt.created_at, prompt.updated_at)
     .run();
   return c.json(prompt, 201);
 });
@@ -617,6 +626,8 @@ app.patch("/api/system-prompts/:id", async (c) => {
   }
   if (updates.length === 0) return c.json({ error: "Nothing to update" }, 400);
 
+  updates.push("updated_at = ?");
+  params.push(Date.now());
   params.push(id);
   await c.env.DB.prepare(`UPDATE system_prompts SET ${updates.join(", ")} WHERE id = ?`)
     .bind(...params)
