@@ -17,7 +17,7 @@ import {
   updateConversationTimestamp,
   updateConversationTitle,
 } from "./db";
-import type { ChatRequest, Env, Message, Model, SystemPrompt } from "./types";
+import type { ChatRequest, Conversation, Env, Message, Model, SystemPrompt } from "./types";
 
 // Isolate-specific in-memory cache for models
 let modelCache: { data: Model[]; timestamp: number } | null = null;
@@ -319,7 +319,7 @@ app.post("/api/conversations", async (c) => {
     return c.json({ error: "Model is required and must be a non-empty string" }, 400);
   }
   const now = Date.now();
-  const conversation: import("./types").Conversation = {
+  const conversation: Conversation = {
     id: crypto.randomUUID(),
     title: "New Conversation",
     model: body.model,

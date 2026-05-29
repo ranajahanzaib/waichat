@@ -110,9 +110,24 @@ export default function App() {
   );
   const [systemPrompts, setSystemPrompts] = useState<SystemPrompt[]>(() => {
     try {
+      const legacyPrompt = localStorage.getItem("waichat:system-prompt");
       const stored = localStorage.getItem(SYSTEM_PROMPTS_KEY);
       const parsed = stored ? JSON.parse(stored) : [];
-      return Array.isArray(parsed) ? parsed : [];
+      let localPrompts: SystemPrompt[] = Array.isArray(parsed) ? parsed : [];
+
+      if (legacyPrompt?.trim()) {
+        const migrated: SystemPrompt = {
+          id: crypto.randomUUID(),
+          user_id: "default",
+          name: "Default Prompt",
+          content: legacyPrompt.trim(),
+          created_at: Date.now(),
+        };
+        localPrompts = [...localPrompts, migrated];
+        localStorage.setItem(SYSTEM_PROMPTS_KEY, JSON.stringify(localPrompts));
+        localStorage.removeItem("waichat:system-prompt");
+      }
+      return localPrompts;
     } catch {
       return [];
     }
@@ -594,17 +609,6 @@ export default function App() {
     });
     if (selectedPromptId === id) setSelectedPromptId(null);
   };
-
-  // One-time migration: import legacy global system prompt into the library
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    const legacyPrompt = localStorage.getItem("waichat:system-prompt");
-    if (legacyPrompt?.trim()) {
-      handleAddSystemPrompt("Default Prompt", legacyPrompt.trim())
-        .then(() => localStorage.removeItem("waichat:system-prompt"))
-        .catch((err) => console.error("Failed to migrate legacy system prompt:", err));
-    }
-  }, []);
 
   const handleClearConversations = async (mode: StorageMode) => {
     const storage = createStorage(mode);
