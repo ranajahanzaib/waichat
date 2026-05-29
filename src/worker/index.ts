@@ -547,6 +547,12 @@ app.post("/api/system-prompts", async (c) => {
   if (!name || !content) {
     return c.json({ error: "Name and content are required and must be non-empty strings" }, 400);
   }
+  if (name.length > 100) {
+    return c.json({ error: "Name must be 100 characters or less" }, 400);
+  }
+  if (content.length > 10000) {
+    return c.json({ error: "Content must be 10000 characters or less" }, 400);
+  }
   const prompt: SystemPrompt = {
     id: crypto.randomUUID(),
     user_id: "default",
@@ -577,12 +583,18 @@ app.patch("/api/system-prompts/:id", async (c) => {
     if (typeof body.name !== "string" || !body.name.trim()) {
       return c.json({ error: "Name must be a non-empty string" }, 400);
     }
+    if (body.name.trim().length > 100) {
+      return c.json({ error: "Name must be 100 characters or less" }, 400);
+    }
     updates.push("name = ?");
     params.push(body.name.trim());
   }
   if (body.content !== undefined) {
     if (typeof body.content !== "string" || !body.content.trim()) {
       return c.json({ error: "Content must be a non-empty string" }, 400);
+    }
+    if (body.content.trim().length > 10000) {
+      return c.json({ error: "Content must be 10000 characters or less" }, 400);
     }
     updates.push("content = ?");
     params.push(body.content.trim());

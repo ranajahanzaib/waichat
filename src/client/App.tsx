@@ -159,6 +159,11 @@ export default function App() {
     activeConversationIdRef.current = activeConversation?.id || null;
   }, [activeConversation?.id]);
 
+  // Reset selected prompt when switching or creating conversations to prevent leakage
+  useEffect(() => {
+    setSelectedPromptId(null);
+  }, [activeConversation?.id]);
+
   const handleTempExpiryChange = useCallback((val: string) => {
     setTempExpiry(val);
     localStorage.setItem("waichat:temp-expiry", val);
@@ -225,20 +230,42 @@ export default function App() {
     retryPendingCloudDeletes();
   }, [loadConversations, retryPendingCloudDeletes]);
 
-  // Load system prompts from cloud if sync enabled, otherwise use localStorage
+  // Load system prompts from cloud if sync enabled, merging local-only prompts up first
   useEffect(() => {
-    if (syncSettings) {
-      fetch("/api/system-prompts")
-        .then((res) => {
-          if (!res.ok) throw new Error("Failed to fetch system prompts");
-          return res.json() as Promise<SystemPrompt[]>;
-        })
-        .then((data) => {
-          setSystemPrompts(data);
-          localStorage.setItem(SYSTEM_PROMPTS_KEY, JSON.stringify(data));
-        })
-        .catch((err) => console.error("Cloud sync error (system_prompts):", err));
-    }
+    if (!syncSettings) return;
+
+    const syncPrompts = async () => {
+      try {
+        const res = await fetch("/api/system-prompts");
+        if (!res.ok) throw new Error("Failed to fetch system prompts");
+        const cloudPrompts = (await res.json()) as SystemPrompt[];
+        const cloudIds = new Set(cloudPrompts.map((p) => p.id));
+
+        // Upload any local prompts that don't exist in the cloud yet
+        const localOnly = systemPrompts.filter((p) => !cloudIds.has(p.id));
+        await Promise.all(
+          localOnly.map((p) =>
+            fetch("/api/system-prompts", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ name: p.name, content: p.content }),
+            }),
+          ),
+        );
+
+        // Re-fetch the merged list from cloud
+        const merged = localOnly.length > 0
+          ? await fetch("/api/system-prompts").then((r) => r.json() as Promise<SystemPrompt[]>)
+          : cloudPrompts;
+
+        setSystemPrompts(merged);
+        localStorage.setItem(SYSTEM_PROMPTS_KEY, JSON.stringify(merged));
+      } catch (err) {
+        console.error("Cloud sync error (system_prompts):", err);
+      }
+    };
+
+    syncPrompts();
   }, [syncSettings]);
 
   // Sync Default Model from Cloud if enabled
