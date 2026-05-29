@@ -33,6 +33,17 @@ export interface SystemPrompt {
 
 export type ThemeMode = "system" | "light" | "dark";
 
+function generateUUID(): string {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
 /**
  * Read system prompts from localStorage, running a one-time migration of the
  * legacy waichat:system-prompt key if present. Defined outside the component
@@ -48,7 +59,7 @@ function readSystemPromptsFromStorage(): SystemPrompt[] {
     if (legacyPrompt?.trim()) {
       const now = Date.now();
       const migrated: SystemPrompt = {
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         user_id: "default",
         name: "Default Prompt",
         content: legacyPrompt.trim(),
@@ -299,7 +310,7 @@ export default function App() {
             const postRes = await fetch("/api/system-prompts", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ id: p.id, name: p.name, content: p.content, created_at: p.created_at }),
+              body: JSON.stringify({ id: p.id, name: p.name, content: p.content, created_at: p.created_at, updated_at: p.updated_at }),
             });
             if (!postRes.ok) throw new Error(`Failed to sync prompt: ${p.name}`);
           }),
@@ -491,10 +502,9 @@ export default function App() {
   // For an active conversation use its stored snapshot so library edits/deletes
   // don't silently change the AI's behaviour mid-conversation.
   // For a new chat (no active conversation) use the currently selected prompt.
-  const effectiveSystemPrompt =
-    activeConversation?.system_prompt ??
-    systemPrompts.find((p) => p.id === selectedPromptId)?.content ??
-    "";
+  const effectiveSystemPrompt = activeConversation
+    ? (activeConversation.system_prompt ?? "")
+    : (systemPrompts.find((p) => p.id === selectedPromptId)?.content ?? "");
 
   const handleSend = async (content: string) => {
     if (isStreaming) return;
@@ -571,7 +581,7 @@ export default function App() {
     } else {
       const now = Date.now();
       const prompt: SystemPrompt = {
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         user_id: "default",
         name,
         content,
