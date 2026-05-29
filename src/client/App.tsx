@@ -971,6 +971,10 @@ export default function App() {
           onDefaultModelChange={handleDefaultModelChange}
           systemPrompts={systemPrompts}
           syncSettings={syncSettings}
+          onSyncSettingsChange={(sync) => {
+            setSyncSettings(sync);
+            localStorage.setItem(SYNC_SETTINGS_KEY, String(sync));
+          }}
           onAddSystemPrompt={handleAddSystemPrompt}
           onUpdateSystemPrompt={handleUpdateSystemPrompt}
           onDeleteSystemPrompt={handleDeleteSystemPrompt}

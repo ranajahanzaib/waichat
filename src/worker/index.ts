@@ -541,7 +541,7 @@ app.get("/api/system-prompts", async (c) => {
 });
 
 app.post("/api/system-prompts", async (c) => {
-  const body = await c.req.json().catch(() => ({}));
+  const body = (await c.req.json().catch(() => ({}))) || {};
   const name = typeof body.name === "string" ? body.name.trim() : "";
   const content = typeof body.content === "string" ? body.content.trim() : "";
   if (!name || !content) {
@@ -564,7 +564,7 @@ app.post("/api/system-prompts", async (c) => {
 
 app.patch("/api/system-prompts/:id", async (c) => {
   const id = c.req.param("id");
-  const body = await c.req.json().catch(() => ({}));
+  const body = (await c.req.json().catch(() => ({}))) || {};
 
   const existing = await c.env.DB.prepare("SELECT id FROM system_prompts WHERE id = ?")
     .bind(id)

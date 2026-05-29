@@ -16,6 +16,7 @@ interface SettingsModalProps {
   onDefaultModelChange: (model: string, sync: boolean) => void;
   systemPrompts: SystemPrompt[];
   syncSettings: boolean;
+  onSyncSettingsChange: (sync: boolean) => void;
   onAddSystemPrompt: (name: string, content: string) => Promise<void>;
   onUpdateSystemPrompt: (id: string, name: string, content: string) => Promise<void>;
   onDeleteSystemPrompt: (id: string) => Promise<void>;
@@ -45,6 +46,7 @@ export default function SettingsModal({
   onDefaultModelChange,
   systemPrompts,
   syncSettings,
+  onSyncSettingsChange,
   onAddSystemPrompt,
   onUpdateSystemPrompt,
   onDeleteSystemPrompt,
@@ -194,6 +196,7 @@ export default function SettingsModal({
   const handleSave = () => {
     onStorageModeChange(draftStorageMode);
     onDefaultModelChange(draftModel, draftSyncSettings);
+    onSyncSettingsChange(draftSyncSettings);
     onClose();
   };
 
