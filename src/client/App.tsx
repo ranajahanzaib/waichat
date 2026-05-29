@@ -110,7 +110,9 @@ export default function App() {
   );
   const [systemPrompts, setSystemPrompts] = useState<SystemPrompt[]>(() => {
     try {
-      return JSON.parse(localStorage.getItem(SYSTEM_PROMPTS_KEY) ?? "[]");
+      const stored = localStorage.getItem(SYSTEM_PROMPTS_KEY);
+      const parsed = stored ? JSON.parse(stored) : [];
+      return Array.isArray(parsed) ? parsed : [];
     } catch {
       return [];
     }
@@ -507,9 +509,11 @@ export default function App() {
   const handleDeleteSystemPrompt = async (id: string) => {
     if (syncSettings) {
       try {
-        await fetch(`/api/system-prompts/${id}`, { method: "DELETE" });
+        const res = await fetch(`/api/system-prompts/${id}`, { method: "DELETE" });
+        if (!res.ok) throw new Error("Failed to delete prompt");
       } catch (err) {
         console.error("Failed to delete system prompt:", err);
+        throw err;
       }
     }
     const updated = systemPrompts.filter((p) => p.id !== id);

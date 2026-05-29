@@ -541,15 +541,17 @@ app.get("/api/system-prompts", async (c) => {
 });
 
 app.post("/api/system-prompts", async (c) => {
-  const { name, content } = await c.req.json<{ name: string; content: string }>();
-  if (!name?.trim() || !content?.trim()) {
-    return c.json({ error: "Name and content are required" }, 400);
+  const body = await c.req.json().catch(() => ({}));
+  const name = typeof body.name === "string" ? body.name.trim() : "";
+  const content = typeof body.content === "string" ? body.content.trim() : "";
+  if (!name || !content) {
+    return c.json({ error: "Name and content are required and must be non-empty strings" }, 400);
   }
   const prompt: SystemPrompt = {
     id: crypto.randomUUID(),
     user_id: "default",
-    name: name.trim(),
-    content: content.trim(),
+    name,
+    content,
     created_at: Date.now(),
   };
   await c.env.DB.prepare(
@@ -562,7 +564,7 @@ app.post("/api/system-prompts", async (c) => {
 
 app.patch("/api/system-prompts/:id", async (c) => {
   const id = c.req.param("id");
-  const { name, content } = await c.req.json<{ name?: string; content?: string }>();
+  const body = await c.req.json().catch(() => ({}));
 
   const existing = await c.env.DB.prepare("SELECT id FROM system_prompts WHERE id = ?")
     .bind(id)
@@ -571,13 +573,19 @@ app.patch("/api/system-prompts/:id", async (c) => {
 
   const updates: string[] = [];
   const params: (string | number)[] = [];
-  if (name !== undefined) {
+  if (body.name !== undefined) {
+    if (typeof body.name !== "string" || !body.name.trim()) {
+      return c.json({ error: "Name must be a non-empty string" }, 400);
+    }
     updates.push("name = ?");
-    params.push(name.trim());
+    params.push(body.name.trim());
   }
-  if (content !== undefined) {
+  if (body.content !== undefined) {
+    if (typeof body.content !== "string" || !body.content.trim()) {
+      return c.json({ error: "Content must be a non-empty string" }, 400);
+    }
     updates.push("content = ?");
-    params.push(content.trim());
+    params.push(body.content.trim());
   }
   if (updates.length === 0) return c.json({ error: "Nothing to update" }, 400);
 

@@ -644,9 +644,14 @@ export default function SettingsModal({
                                   Edit
                                 </button>
                                 <button
-                                  onClick={() => {
+                                  onClick={async () => {
                                     if (confirm(`Delete "${prompt.name}"?`)) {
-                                      onDeleteSystemPrompt(prompt.id);
+                                      try {
+                                        await onDeleteSystemPrompt(prompt.id);
+                                        toast.success("Prompt deleted!");
+                                      } catch {
+                                        toast.error("Failed to delete prompt");
+                                      }
                                     }
                                   }}
                                   className="text-[11px] font-medium text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-full px-2.5 py-1 transition-all focus:outline-none"
