@@ -325,7 +325,7 @@ app.post("/api/conversations", async (c) => {
     model: body.model,
     created_at: now,
     updated_at: now,
-    system_prompt_id: body.system_prompt_id ?? null,
+    system_prompt_id: typeof body.system_prompt_id === "string" && body.system_prompt_id.trim() ? body.system_prompt_id.trim() : null,
   };
   await c.env.DB.prepare(
     "INSERT INTO conversations (id, title, model, created_at, updated_at, system_prompt_id) VALUES (?, ?, ?, ?, ?, ?)",

@@ -251,8 +251,14 @@ export default function App() {
         const cloudIds = new Set(cloudPrompts.map((p) => p.id));
 
         // Read local prompts directly from storage to avoid stale closure
-        const stored = localStorage.getItem(SYSTEM_PROMPTS_KEY);
-        const localPrompts: SystemPrompt[] = stored ? JSON.parse(stored) : [];
+        let localPrompts: SystemPrompt[] = [];
+        try {
+          const stored = localStorage.getItem(SYSTEM_PROMPTS_KEY);
+          const parsed = stored ? JSON.parse(stored) : [];
+          localPrompts = Array.isArray(parsed) ? parsed : [];
+        } catch {
+          localPrompts = [];
+        }
         const localOnly = localPrompts.filter((p) => !cloudIds.has(p.id));
         await Promise.all(
           localOnly.map(async (p) => {
