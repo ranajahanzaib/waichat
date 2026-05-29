@@ -586,7 +586,7 @@ app.post("/api/system-prompts", async (c) => {
     updated_at: typeof body.updated_at === "number" ? body.updated_at : now,
   };
   await c.env.DB.prepare(
-    "INSERT INTO system_prompts (id, user_id, name, content, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET name = excluded.name, content = excluded.content, updated_at = excluded.updated_at WHERE excluded.updated_at >= system_prompts.updated_at",
+    "INSERT INTO system_prompts (id, user_id, name, content, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET name = excluded.name, content = excluded.content, updated_at = excluded.updated_at WHERE system_prompts.updated_at IS NULL OR excluded.updated_at >= system_prompts.updated_at",
   )
     .bind(prompt.id, prompt.user_id, prompt.name, prompt.content, prompt.created_at, prompt.updated_at)
     .run();

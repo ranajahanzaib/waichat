@@ -44,33 +44,12 @@ function generateUUID(): string {
   });
 }
 
-/**
- * Read system prompts from localStorage, running a one-time migration of the
- * legacy waichat:system-prompt key if present. Defined outside the component
- * so it runs once at module load time without any React lifecycle involvement.
- */
+/** Pure read of stored system prompts — no side effects. */
 function readSystemPromptsFromStorage(): SystemPrompt[] {
   try {
-    const legacyPrompt = localStorage.getItem("waichat:system-prompt");
     const stored = localStorage.getItem(SYSTEM_PROMPTS_KEY);
     const parsed = stored ? JSON.parse(stored) : [];
-    let prompts: SystemPrompt[] = Array.isArray(parsed) ? parsed : [];
-
-    if (legacyPrompt?.trim()) {
-      const now = Date.now();
-      const migrated: SystemPrompt = {
-        id: generateUUID(),
-        user_id: "default",
-        name: "Default Prompt",
-        content: legacyPrompt.trim(),
-        created_at: now,
-        updated_at: now,
-      };
-      prompts = [...prompts, migrated];
-      localStorage.setItem(SYSTEM_PROMPTS_KEY, JSON.stringify(prompts));
-      localStorage.removeItem("waichat:system-prompt");
-    }
-    return prompts;
+    return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
   }
@@ -258,6 +237,32 @@ export default function App() {
     const interval = setInterval(runCleanup, 60000);
     return () => clearInterval(interval);
   }, [loadConversations, tempExpiry, clearConversation]);
+
+  // One-time migration: import legacy waichat:system-prompt into the library
+  useEffect(() => {
+    try {
+      const legacyPrompt = localStorage.getItem("waichat:system-prompt");
+      if (legacyPrompt?.trim()) {
+        const now = Date.now();
+        const migrated: SystemPrompt = {
+          id: generateUUID(),
+          user_id: "default",
+          name: "Default Prompt",
+          content: legacyPrompt.trim(),
+          created_at: now,
+          updated_at: now,
+        };
+        setSystemPrompts((prev) => {
+          const updated = [...prev, migrated];
+          localStorage.setItem(SYSTEM_PROMPTS_KEY, JSON.stringify(updated));
+          return updated;
+        });
+        localStorage.removeItem("waichat:system-prompt");
+      }
+    } catch (err) {
+      console.error("Failed to migrate legacy system prompt:", err);
+    }
+  }, []);
 
   const isStreamingHere =
     isStreaming &&
@@ -560,44 +565,55 @@ export default function App() {
   };
 
   const handleAddSystemPrompt = async (name: string, content: string) => {
+    const now = Date.now();
+    const prompt: SystemPrompt = {
+      id: generateUUID(),
+      user_id: "default",
+      name,
+      content,
+      created_at: now,
+      updated_at: now,
+    };
+
+    // Update local state immediately so the UI is always responsive
+    setSystemPrompts((prev) => {
+      const updated = [...prev, prompt];
+      savePromptsLocally(updated);
+      return updated;
+    });
+
     if (syncSettings) {
       try {
         const res = await fetch("/api/system-prompts", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name, content }),
+          body: JSON.stringify({
+            id: prompt.id,
+            name: prompt.name,
+            content: prompt.content,
+            created_at: prompt.created_at,
+            updated_at: prompt.updated_at,
+          }),
         });
         if (!res.ok) throw new Error("Failed to save prompt");
-        const prompt = (await res.json()) as SystemPrompt;
-        setSystemPrompts((prev) => {
-          const updated = [...prev, prompt];
-          savePromptsLocally(updated);
-          return updated;
-        });
       } catch (err) {
-        console.error("Failed to add system prompt:", err);
-        throw err;
+        console.error("Failed to sync system prompt to cloud:", err);
       }
-    } else {
-      const now = Date.now();
-      const prompt: SystemPrompt = {
-        id: generateUUID(),
-        user_id: "default",
-        name,
-        content,
-        created_at: now,
-        updated_at: now,
-      };
-      setSystemPrompts((prev) => {
-        const updated = [...prev, prompt];
-        savePromptsLocally(updated);
-        return updated;
-      });
     }
   };
 
   const handleUpdateSystemPrompt = async (id: string, name: string, content: string) => {
     const now = Date.now();
+
+    // Update local state immediately
+    setSystemPrompts((prev) => {
+      const updated = prev.map((p) =>
+        p.id === id ? { ...p, name, content, updated_at: now } : p,
+      );
+      savePromptsLocally(updated);
+      return updated;
+    });
+
     if (syncSettings) {
       try {
         const res = await fetch(`/api/system-prompts/${id}`, {
@@ -607,17 +623,9 @@ export default function App() {
         });
         if (!res.ok) throw new Error("Failed to update prompt");
       } catch (err) {
-        console.error("Failed to update system prompt:", err);
-        throw err;
+        console.error("Failed to sync system prompt update to cloud:", err);
       }
     }
-    setSystemPrompts((prev) => {
-      const updated = prev.map((p) =>
-        p.id === id ? { ...p, name, content, updated_at: now } : p,
-      );
-      savePromptsLocally(updated);
-      return updated;
-    });
   };
 
   const handleDeleteSystemPrompt = async (id: string) => {
