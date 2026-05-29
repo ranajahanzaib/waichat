@@ -159,36 +159,16 @@ export default function App() {
     activeConversationIdRef.current = activeConversation?.id || null;
   }, [activeConversation?.id]);
 
-  const isCreatingConversationRef = useRef(false);
-  const prevActiveIdRef = useRef<string | null | undefined>(undefined);
-
-  // When switching to a different existing conversation, restore its system prompt.
-  // When creating a new conversation (null → id), preserve the chosen prompt.
-  // When clearing to a new-chat screen (id → null), reset the prompt.
+  // Sync selected prompt with the active conversation's stored system_prompt_id.
+  // Covers all cases: initial URL load, conversation switch, new-chat clear, and
+  // new conversation creation (which comes back from storage with system_prompt_id set).
   useEffect(() => {
-    const prevId = prevActiveIdRef.current;
-    const nextId = activeConversation?.id ?? null;
-    prevActiveIdRef.current = nextId;
-
-    if (prevId === undefined) {
-      // Initial mount: if we loaded straight into a conversation, restore its prompt
-      if (nextId !== null) {
-        const convo = conversations.find((c) => c.id === nextId);
-        if (convo?.system_prompt_id) setSelectedPromptId(convo.system_prompt_id);
-      }
-      return;
+    if (activeConversation) {
+      setSelectedPromptId(activeConversation.system_prompt_id ?? null);
+    } else {
+      setSelectedPromptId(null);
     }
-
-    if (isCreatingConversationRef.current) {
-      isCreatingConversationRef.current = false;
-      return; // null → new id: keep the chosen prompt for this session
-    }
-
-    if (nextId === null) {
-      setSelectedPromptId(null); // cleared to new-chat screen
-    }
-    // switching to an existing convo: handleSelectConversation already sets the prompt
-  }, [activeConversation?.id]);
+  }, [activeConversation?.id, activeConversation?.system_prompt_id]);
 
   const handleTempExpiryChange = useCallback((val: string) => {
     setTempExpiry(val);
@@ -436,11 +416,6 @@ export default function App() {
     setDrafts((prev) => ({ ...prev, [currentKey]: inputValue }));
     selectConversation(id);
     setInputValue(nextDraft);
-
-    // Restore the system prompt that was selected when this conversation was created
-    const convo = conversations.find((c) => c.id === id);
-    setSelectedPromptId(convo?.system_prompt_id ?? null);
-
     closeSidebarOnMobile();
   };
 
@@ -476,7 +451,6 @@ export default function App() {
     if (isStreaming) return;
     const currentModel = activeConversation?.model ?? defaultModel;
     if (!activeConversation) {
-      isCreatingConversationRef.current = true;
       const convo = await newConversation(defaultModel, storageMode, selectedPromptId);
       await sendMessage(content, defaultModel, convo.id, storageMode, effectiveSystemPrompt);
     } else {
