@@ -360,13 +360,14 @@ app.get("/api/conversations/search", async (c) => {
   const q = c.req.query("q")?.trim() ?? "";
   if (!q) return c.json([]);
 
-  const like = `%${q}%`;
+  const escaped = q.replace(/[\\%_]/g, "\\$&");
+  const like = `%${escaped}%`;
 
   const rows = await c.env.DB.prepare(
-    `SELECT c.id, c.title, c.updated_at, MAX(CASE WHEN m.content LIKE ? THEN m.content END) AS message_content
+    `SELECT c.id, c.title, c.updated_at, MAX(CASE WHEN m.content LIKE ? ESCAPE '\\' THEN m.content END) AS message_content
      FROM conversations c
      LEFT JOIN messages m ON m.conversation_id = c.id AND m.deleted_at IS NULL
-     WHERE c.title LIKE ? OR m.content LIKE ?
+     WHERE c.title LIKE ? ESCAPE '\\' OR m.content LIKE ? ESCAPE '\\'
      GROUP BY c.id
      ORDER BY c.updated_at DESC
      LIMIT 50`,

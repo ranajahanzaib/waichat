@@ -58,7 +58,6 @@ export default function Sidebar({
   const [searchQuery, setSearchQuery] = useState("");
   const [apiSearchResults, setApiSearchResults] = useState<ConversationSearchResult[] | null>(null);
   const [localSearchResults, setLocalSearchResults] = useState<ConversationSearchResult[] | null>(null);
-  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [expiryDropdownOpen, setExpiryDropdownOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Conversation | null>(null);
@@ -173,9 +172,7 @@ export default function Sidebar({
     if (currentMode !== "cloud" || !searchQuery) return;
 
     const controller = new AbortController();
-    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
-
-    searchDebounceRef.current = setTimeout(async () => {
+    const timer = setTimeout(async () => {
       try {
         const res = await fetch(
           `/api/conversations/search?q=${encodeURIComponent(searchQuery)}`,
@@ -191,7 +188,7 @@ export default function Sidebar({
     }, 300);
 
     return () => {
-      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+      clearTimeout(timer);
       controller.abort();
     };
   }, [searchQuery, currentMode]);
@@ -200,9 +197,7 @@ export default function Sidebar({
   useEffect(() => {
     if (currentMode === "cloud" || !searchQuery) return;
 
-    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
-
-    searchDebounceRef.current = setTimeout(() => {
+    const timer = setTimeout(() => {
       const lowerQ = searchQuery.toLowerCase();
       const results: ConversationSearchResult[] = [];
       for (const c of conversations) {
@@ -235,9 +230,7 @@ export default function Sidebar({
       setLocalSearchResults(results);
     }, 300);
 
-    return () => {
-      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
-    };
+    return () => clearTimeout(timer);
   }, [searchQuery, currentMode, conversations]);
 
   useEffect(() => {
@@ -541,7 +534,10 @@ export default function Sidebar({
                         onChange={(e) => setEditTitle(e.target.value)}
                         onKeyDown={(e) => {
                           if (e.key === "Enter") handleSaveRename(c.id);
-                          if (e.key === "Escape") setEditingId(null);
+                          if (e.key === "Escape") {
+                            e.stopPropagation();
+                            setEditingId(null);
+                          }
                         }}
                         onBlur={() => !isRenaming && setEditingId(null)}
                         disabled={isRenaming}
