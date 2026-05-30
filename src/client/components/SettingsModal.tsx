@@ -74,6 +74,7 @@ export default function SettingsModal({
   const [newPromptContent, setNewPromptContent] = useState("");
   const [editingPrompt, setEditingPrompt] = useState<SystemPrompt | null>(null);
   const [editName, setEditName] = useState("");
+  const [confirmDeletePromptId, setConfirmDeletePromptId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState("");
   const [isSavingPrompt, setIsSavingPrompt] = useState(false);
   const [isDeletingPromptId, setIsDeletingPromptId] = useState<string | null>(null);
@@ -181,6 +182,7 @@ export default function SettingsModal({
       setNewPromptName("");
       setNewPromptContent("");
       setEditingPrompt(null);
+      setConfirmDeletePromptId(null);
     }
   }, [open, storageMode, defaultModel, syncSettings]);
 
@@ -628,47 +630,70 @@ export default function SettingsModal({
                           ) : (
                             <div
                               key={prompt.id}
-                              className="flex items-start justify-between gap-3 py-3 px-4 rounded-xl bg-white/60 dark:bg-white/5 border-[0.5px] border-black/10 dark:border-white/10"
+                              className="rounded-xl bg-white/60 dark:bg-white/5 border-[0.5px] border-black/10 dark:border-white/10 overflow-hidden"
                             >
-                              <div className="min-w-0 flex-1">
-                                <p className="text-[13px] md:text-sm font-medium text-gray-900 dark:text-white/95 truncate">
-                                  {prompt.name}
-                                </p>
-                                <p className="text-[11px] md:text-xs text-gray-500 dark:text-white/40 mt-0.5 line-clamp-2">
-                                  {prompt.content}
-                                </p>
+                              <div className="flex items-start justify-between gap-3 py-3 px-4">
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-[13px] md:text-sm font-medium text-gray-900 dark:text-white/95 truncate">
+                                    {prompt.name}
+                                  </p>
+                                  <p className="text-[11px] md:text-xs text-gray-500 dark:text-white/40 mt-0.5 line-clamp-2">
+                                    {prompt.content}
+                                  </p>
+                                </div>
+                                <div className="flex gap-1.5 shrink-0">
+                                  <button
+                                    onClick={() => {
+                                      setEditingPrompt(prompt);
+                                      setEditName(prompt.name);
+                                      setEditContent(prompt.content);
+                                    }}
+                                    className="text-[11px] font-medium text-gray-500 dark:text-white/40 hover:text-gray-900 dark:hover:text-white/90 hover:bg-black/5 dark:hover:bg-white/10 rounded-full px-2.5 py-1 transition-all focus:outline-none"
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    disabled={isDeletingPromptId === prompt.id}
+                                    onClick={() => setConfirmDeletePromptId(prompt.id)}
+                                    className="text-[11px] font-medium text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 disabled:opacity-50 rounded-full px-2.5 py-1 transition-all focus:outline-none"
+                                  >
+                                    {isDeletingPromptId === prompt.id ? "Deleting..." : "Delete"}
+                                  </button>
+                                </div>
                               </div>
-                              <div className="flex gap-1.5 shrink-0">
-                                <button
-                                  onClick={() => {
-                                    setEditingPrompt(prompt);
-                                    setEditName(prompt.name);
-                                    setEditContent(prompt.content);
-                                  }}
-                                  className="text-[11px] font-medium text-gray-500 dark:text-white/40 hover:text-gray-900 dark:hover:text-white/90 hover:bg-black/5 dark:hover:bg-white/10 rounded-full px-2.5 py-1 transition-all focus:outline-none"
-                                >
-                                  Edit
-                                </button>
-                                <button
-                                  disabled={isDeletingPromptId === prompt.id}
-                                  onClick={async () => {
-                                    if (confirm(`Delete "${prompt.name}"?`)) {
-                                      setIsDeletingPromptId(prompt.id);
-                                      try {
-                                        await onDeleteSystemPrompt(prompt.id);
-                                        toast.success("Prompt deleted!");
-                                      } catch {
-                                        toast.error("Failed to delete prompt");
-                                      } finally {
-                                        setIsDeletingPromptId(null);
-                                      }
-                                    }
-                                  }}
-                                  className="text-[11px] font-medium text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 disabled:opacity-50 rounded-full px-2.5 py-1 transition-all focus:outline-none"
-                                >
-                                  {isDeletingPromptId === prompt.id ? "Deleting..." : "Delete"}
-                                </button>
-                              </div>
+                              {confirmDeletePromptId === prompt.id && (
+                                <div className="px-4 pb-3 pt-1 border-t-[0.5px] border-red-200 dark:border-red-500/20 bg-red-50/60 dark:bg-red-500/10">
+                                  <p className="text-[11px] md:text-xs text-red-600 dark:text-red-400 font-medium mb-2">
+                                    Delete &ldquo;{prompt.name}&rdquo;? This cannot be undone.
+                                  </p>
+                                  <div className="flex gap-2">
+                                    <button
+                                      disabled={isDeletingPromptId === prompt.id}
+                                      onClick={async () => {
+                                        setIsDeletingPromptId(prompt.id);
+                                        try {
+                                          await onDeleteSystemPrompt(prompt.id);
+                                          setConfirmDeletePromptId(null);
+                                          toast.success("Prompt deleted!");
+                                        } catch {
+                                          toast.error("Failed to delete prompt");
+                                        } finally {
+                                          setIsDeletingPromptId(null);
+                                        }
+                                      }}
+                                      className="text-[11px] font-medium text-white bg-red-500 hover:bg-red-600 disabled:opacity-50 rounded-full px-3 py-1 transition-colors focus:outline-none"
+                                    >
+                                      {isDeletingPromptId === prompt.id ? "Deleting..." : "Yes, delete"}
+                                    </button>
+                                    <button
+                                      onClick={() => setConfirmDeletePromptId(null)}
+                                      className="text-[11px] font-medium text-gray-600 dark:text-white/60 hover:text-gray-900 dark:hover:text-white/90 hover:bg-black/5 dark:hover:bg-white/10 rounded-full px-3 py-1 transition-colors focus:outline-none"
+                                    >
+                                      Cancel
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           ),
                         )}
