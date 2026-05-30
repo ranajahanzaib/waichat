@@ -720,7 +720,7 @@ export default function App() {
 
   const handleChatExport = useCallback(
     (_id: string, format: "markdown" | "pdf") => {
-      if (!activeConversation || !activeBranch.length) return;
+      if (!activeConversation) return;
       if (format === "markdown") {
         exportAsMarkdown(activeConversation, activeBranch);
       } else {
@@ -952,7 +952,6 @@ export default function App() {
           onRename={renameConversation}
           onExport={handleChatExport}
           activeConversationId={activeConversation?.id ?? null}
-          messagesLoaded={activeBranch.length > 0 || activeConversation == null}
           onSearch={(q, signal) => createStorage(storageMode).searchConversations(q, signal)}
           onSettingsOpen={() => setSettingsOpen(true)}
           onModeChange={handleStorageToggle}

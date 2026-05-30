@@ -28,7 +28,6 @@ interface SidebarProps {
   onRename: (id: string, title: string) => Promise<void>;
   onExport: (id: string, format: "markdown" | "pdf") => void;
   activeConversationId: string | null;
-  messagesLoaded: boolean;
   onSettingsOpen: () => void;
   onModeChange: (mode: StorageMode) => void;
   onSearch: (query: string, signal?: AbortSignal) => Promise<ConversationSearchResult[]>;
@@ -53,7 +52,6 @@ export default function Sidebar({
   onRename,
   onExport,
   activeConversationId,
-  messagesLoaded,
   onSettingsOpen,
   onModeChange,
   onSearch,
@@ -683,15 +681,13 @@ export default function Sidebar({
                             e.stopPropagation();
                             setExportMenuId(exportMenuId === c.id ? null : c.id);
                           }}
-                          disabled={c.id !== activeConversationId || !messagesLoaded}
+                          disabled={c.id !== activeConversationId}
                           className="w-full flex items-center gap-2 px-3 py-2 text-left text-[13px] text-gray-700 dark:text-white/80 hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                           role="menuitem"
                           title={
                             c.id !== activeConversationId
                               ? "Open this conversation to export"
-                              : !messagesLoaded
-                                ? "Messages are loading…"
-                                : undefined
+                              : undefined
                           }
                         >
                           <Download size={14} />
