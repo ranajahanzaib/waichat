@@ -57,6 +57,7 @@ export default function Sidebar({
 }: SidebarProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [apiSearchResults, setApiSearchResults] = useState<ConversationSearchResult[] | null>(null);
+  const [localSearchResults, setLocalSearchResults] = useState<ConversationSearchResult[] | null>(null);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [expiryDropdownOpen, setExpiryDropdownOpen] = useState(false);
@@ -164,85 +165,92 @@ export default function Sidebar({
   useEffect(() => {
     if (!searchQuery) {
       setApiSearchResults(null);
+      setLocalSearchResults(null);
       if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
       return;
     }
 
-    if (currentMode !== "cloud") return;
-
+    const controller = new AbortController();
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+
     searchDebounceRef.current = setTimeout(async () => {
-      try {
-        const res = await fetch(`/api/conversations/search?q=${encodeURIComponent(searchQuery)}`);
-        if (res.ok) {
-          const data: ConversationSearchResult[] = await res.json();
-          setApiSearchResults(data);
+      if (currentMode === "cloud") {
+        try {
+          const res = await fetch(
+            `/api/conversations/search?q=${encodeURIComponent(searchQuery)}`,
+            { signal: controller.signal },
+          );
+          if (res.ok) {
+            const data: ConversationSearchResult[] = await res.json();
+            setApiSearchResults(data);
+          }
+        } catch (err: any) {
+          if (err.name !== "AbortError") console.error(err);
         }
-      } catch {}
+      } else {
+        const lowerQ = searchQuery.toLowerCase();
+        const results: ConversationSearchResult[] = [];
+        for (const c of conversations) {
+          const titleMatch = c.title.toLowerCase().includes(lowerQ);
+          let snippet = "";
+          try {
+            const rawMessages = localStorage.getItem(`waichat:messages:${c.id}`);
+            if (rawMessages) {
+              const msgs: { content: string; deleted_at?: number }[] = JSON.parse(rawMessages);
+              for (const m of msgs) {
+                if (m.deleted_at) continue;
+                const lowerContent = m.content.toLowerCase();
+                const idx = lowerContent.indexOf(lowerQ);
+                if (idx !== -1) {
+                  const start = Math.max(0, idx - 40);
+                  const end = Math.min(m.content.length, idx + lowerQ.length + 40);
+                  snippet =
+                    (start > 0 ? "…" : "") +
+                    m.content.slice(start, end) +
+                    (end < m.content.length ? "…" : "");
+                  break;
+                }
+              }
+            }
+          } catch {}
+          if (titleMatch || snippet) {
+            results.push({ id: c.id, title: c.title, snippet, updated_at: c.updated_at });
+          }
+        }
+        setLocalSearchResults(results);
+      }
     }, 300);
 
     return () => {
       if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+      controller.abort();
     };
-  }, [searchQuery, currentMode]);
+  }, [searchQuery, currentMode, conversations]);
 
   useEffect(() => {
     const handleEscapeSearch = (e: KeyboardEvent) => {
       if (e.key === "Escape" && searchQuery) {
         setSearchQuery("");
         setApiSearchResults(null);
+        setLocalSearchResults(null);
       }
     };
     document.addEventListener("keydown", handleEscapeSearch);
     return () => document.removeEventListener("keydown", handleEscapeSearch);
   }, [searchQuery]);
 
-  const localSearchResults = (): ConversationSearchResult[] => {
-    const lowerQ = searchQuery.toLowerCase();
-    const results: ConversationSearchResult[] = [];
-    for (const c of conversations) {
-      const titleMatch = c.title.toLowerCase().includes(lowerQ);
-      let snippet = "";
-
-      try {
-        const rawMessages = localStorage.getItem(`waichat:messages:${c.id}`);
-        if (rawMessages) {
-          const msgs: { content: string; deleted_at?: number }[] = JSON.parse(rawMessages);
-          for (const m of msgs) {
-            if (m.deleted_at) continue;
-            const lowerContent = m.content.toLowerCase();
-            const idx = lowerContent.indexOf(lowerQ);
-            if (idx !== -1) {
-              const start = Math.max(0, idx - 40);
-              const end = Math.min(m.content.length, idx + lowerQ.length + 40);
-              snippet =
-                (start > 0 ? "…" : "") +
-                m.content.slice(start, end) +
-                (end < m.content.length ? "…" : "");
-              break;
-            }
-          }
-        }
-      } catch {}
-
-      if (titleMatch || snippet) {
-        results.push({ id: c.id, title: c.title, snippet, updated_at: c.updated_at });
-      }
-    }
-    return results;
-  };
-
   const getDisplayResults = (): ConversationSearchResult[] | null => {
     if (!searchQuery) return null;
     if (currentMode === "cloud") {
       if (apiSearchResults !== null) return apiSearchResults;
-      // While waiting for API, show title matches from loaded conversations
-      const lowerQ = searchQuery.toLowerCase();
-      return conversations
-        .filter((c) => c.title.toLowerCase().includes(lowerQ))
-        .map((c) => ({ id: c.id, title: c.title, snippet: "", updated_at: c.updated_at }));
+    } else {
+      if (localSearchResults !== null) return localSearchResults;
     }
-    return localSearchResults();
+    // While waiting for debounced results, show instant title matches
+    const lowerQ = searchQuery.toLowerCase();
+    return conversations
+      .filter((c) => c.title.toLowerCase().includes(lowerQ))
+      .map((c) => ({ id: c.id, title: c.title, snippet: "", updated_at: c.updated_at }));
   };
 
   const displayResults = getDisplayResults();
@@ -367,6 +375,7 @@ export default function Sidebar({
                 onClick={() => {
                   setSearchQuery("");
                   setApiSearchResults(null);
+                  setLocalSearchResults(null);
                   searchInputRef.current?.focus();
                 }}
                 className="absolute right-2 text-gray-400 hover:text-gray-700 dark:text-white/30 dark:hover:text-white/70 transition-colors"

@@ -363,24 +363,20 @@ app.get("/api/conversations/search", async (c) => {
   const like = `%${q}%`;
 
   const rows = await c.env.DB.prepare(
-    `SELECT c.id, c.title, c.updated_at, m.content AS message_content
+    `SELECT c.id, c.title, c.updated_at, MAX(CASE WHEN m.content LIKE ? THEN m.content END) AS message_content
      FROM conversations c
-     JOIN messages m ON m.conversation_id = c.id
-     WHERE m.deleted_at IS NULL AND (c.title LIKE ? OR m.content LIKE ?)
+     LEFT JOIN messages m ON m.conversation_id = c.id AND m.deleted_at IS NULL
+     WHERE c.title LIKE ? OR m.content LIKE ?
+     GROUP BY c.id
      ORDER BY c.updated_at DESC
      LIMIT 50`,
   )
-    .bind(like, like)
-    .all<{ id: string; title: string; updated_at: number; message_content: string }>();
+    .bind(like, like, like)
+    .all<{ id: string; title: string; updated_at: number; message_content: string | null }>();
 
-  // Deduplicate by conversation id, keeping first (most recent) match per conversation
-  const seen = new Set<string>();
   const results: { id: string; title: string; snippet: string; updated_at: number }[] = [];
 
   for (const row of rows.results) {
-    if (seen.has(row.id)) continue;
-    seen.add(row.id);
-
     const content = row.message_content ?? "";
     const lowerContent = content.toLowerCase();
     const lowerQ = q.toLowerCase();
