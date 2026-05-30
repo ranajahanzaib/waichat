@@ -3,6 +3,8 @@ import {
   ChevronDown,
   Cloud,
   Database,
+  Download,
+  FileText,
   HatGlasses,
   Loader2,
   Pencil,
@@ -24,6 +26,9 @@ interface SidebarProps {
   onDelete: (id: string) => void;
   onMove: (id: string, targetMode?: StorageMode) => void;
   onRename: (id: string, title: string) => Promise<void>;
+  onExport: (id: string, format: "markdown" | "pdf") => void;
+  activeConversationId: string | null;
+  messagesLoaded: boolean;
   onSettingsOpen: () => void;
   onModeChange: (mode: StorageMode) => void;
   onSearch: (query: string, signal?: AbortSignal) => Promise<ConversationSearchResult[]>;
@@ -46,6 +51,9 @@ export default function Sidebar({
   onDelete,
   onMove,
   onRename,
+  onExport,
+  activeConversationId,
+  messagesLoaded,
   onSettingsOpen,
   onModeChange,
   onSearch,
@@ -82,9 +90,10 @@ export default function Sidebar({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [isRenaming, setIsRenaming] = useState(false);
+  const [exportMenuId, setExportMenuId] = useState<string | null>(null);
   const [isMobileMenu, setIsMobileMenu] = useState(false);
   const [menuPos, setMenuPos] = useState<{ top?: number; bottom?: number; left?: number }>({});
-  const MENU_HEIGHT_ESTIMATE = 160;
+  const MENU_HEIGHT_ESTIMATE = 200;
   const menuRef = useRef<HTMLDivElement>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -143,6 +152,7 @@ export default function Sidebar({
       // Handle Context Menu click-away
       if (menuRef.current && !menuRef.current.contains(target)) {
         setOpenMenuId(null);
+        setExportMenuId(null);
       }
 
       // Handle Expiry Dropdown click-away
@@ -153,6 +163,7 @@ export default function Sidebar({
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setOpenMenuId(null);
+        setExportMenuId(null);
         setExpiryDropdownOpen(false);
       }
     };
@@ -660,6 +671,62 @@ export default function Sidebar({
                           Move Chat to {targetMode === "cloud" ? "Cloud" : "Local"}
                         </button>
                       )}
+                      <div className="h-[0.5px] bg-black/5 dark:bg-white/10 mx-2 my-1" />
+                      <div className="relative">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setExportMenuId(exportMenuId === c.id ? null : c.id);
+                          }}
+                          disabled={c.id !== activeConversationId || !messagesLoaded}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-left text-[13px] text-gray-700 dark:text-white/80 hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          role="menuitem"
+                          title={
+                            c.id !== activeConversationId
+                              ? "Open this conversation to export"
+                              : !messagesLoaded
+                                ? "Messages are loading…"
+                                : undefined
+                          }
+                        >
+                          <Download size={14} />
+                          Export
+                          <ChevronDown
+                            size={12}
+                            className={`ml-auto transition-transform ${exportMenuId === c.id ? "rotate-180" : ""}`}
+                          />
+                        </button>
+                        {exportMenuId === c.id && (
+                          <div className="border-t border-black/5 dark:border-white/10">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setOpenMenuId(null);
+                                setExportMenuId(null);
+                                onExport(c.id, "markdown");
+                              }}
+                              className="w-full flex items-center gap-2 px-3 py-2 pl-8 text-left text-[13px] text-gray-700 dark:text-white/80 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                              role="menuitem"
+                            >
+                              <FileText size={13} />
+                              Export as Markdown
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setOpenMenuId(null);
+                                setExportMenuId(null);
+                                onExport(c.id, "pdf");
+                              }}
+                              className="w-full flex items-center gap-2 px-3 py-2 pl-8 text-left text-[13px] text-gray-700 dark:text-white/80 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                              role="menuitem"
+                            >
+                              <FileText size={13} />
+                              Export as PDF
+                            </button>
+                          </div>
+                        )}
+                      </div>
                       <div className="h-[0.5px] bg-black/5 dark:bg-white/10 mx-2 my-1" />
                       <button
                         onClick={(e) => {

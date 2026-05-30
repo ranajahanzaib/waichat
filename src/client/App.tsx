@@ -12,6 +12,7 @@ import { useToast } from "./hooks/useToast";
 import { useTransfer } from "./hooks/useTransfer";
 import type { Conversation, Message, StorageMode } from "./storage";
 import { createStorage } from "./storage";
+import { exportAsMarkdown, exportAsPdf } from "./utils/chatExport";
 import { exportWorkspace } from "./utils/exportUtils";
 import { parseImportFile } from "./utils/importUtils";
 
@@ -131,8 +132,8 @@ export default function App() {
   const [defaultModel, setDefaultModel] = useState(
     () => localStorage.getItem(DEFAULT_MODEL_KEY) ?? DEFAULT_MODEL_ID,
   );
-  const [systemPrompts, setSystemPrompts] = useState<SystemPrompt[]>(
-    () => readSystemPromptsFromStorage(),
+  const [systemPrompts, setSystemPrompts] = useState<SystemPrompt[]>(() =>
+    readSystemPromptsFromStorage(),
   );
   const [selectedPromptId, setSelectedPromptId] = useState<string | null>(null);
   const [syncSettings, setSyncSettings] = useState(
@@ -319,7 +320,13 @@ export default function App() {
               const postRes = await fetch("/api/system-prompts", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ id: p.id, name: p.name, content: p.content, created_at: p.created_at, updated_at: p.updated_at }),
+                body: JSON.stringify({
+                  id: p.id,
+                  name: p.name,
+                  content: p.content,
+                  created_at: p.created_at,
+                  updated_at: p.updated_at,
+                }),
               });
               if (!postRes.ok) throw new Error(`Failed to sync prompt: ${p.name}`);
             } catch (err) {
@@ -331,7 +338,9 @@ export default function App() {
         // Abort before overwriting localStorage — any failed upload means the
         // cloud list is incomplete and would permanently delete local-only prompts
         if (hasUploadError) {
-          throw new Error("Some prompts failed to upload. Aborting sync to prevent local data loss.");
+          throw new Error(
+            "Some prompts failed to upload. Aborting sync to prevent local data loss.",
+          );
         }
         if (!active) return;
 
@@ -528,7 +537,12 @@ export default function App() {
     if (isStreaming) return;
     const currentModel = activeConversation?.model ?? defaultModel;
     if (!activeConversation) {
-      const convo = await newConversation(defaultModel, storageMode, selectedPromptId, effectiveSystemPrompt || null);
+      const convo = await newConversation(
+        defaultModel,
+        storageMode,
+        selectedPromptId,
+        effectiveSystemPrompt || null,
+      );
       await sendMessage(content, defaultModel, convo.id, storageMode, effectiveSystemPrompt);
     } else {
       await sendMessage(
@@ -632,7 +646,10 @@ export default function App() {
         if (!res.ok) throw new Error("Failed to update prompt");
       } catch (err) {
         // Local state is kept — background sync will retry on next load/sync enable
-        console.error("Failed to sync system prompt update to cloud (will retry on next sync):", err);
+        console.error(
+          "Failed to sync system prompt update to cloud (will retry on next sync):",
+          err,
+        );
       }
     }
   };
@@ -700,6 +717,18 @@ export default function App() {
       cancelMove();
     }
   };
+
+  const handleChatExport = useCallback(
+    (_id: string, format: "markdown" | "pdf") => {
+      if (!activeConversation || !messages.length) return;
+      if (format === "markdown") {
+        exportAsMarkdown(activeConversation, messages);
+      } else {
+        exportAsPdf(activeConversation, messages);
+      }
+    },
+    [activeConversation, messages],
+  );
 
   const handleExportWorkspace = async (scope: "local" | "cloud" | "both") => {
     try {
@@ -835,14 +864,21 @@ export default function App() {
       }
 
       // Restore system prompt library — merge by updated_at so newer imported versions win
-      if (data.systemPrompts && Array.isArray(data.systemPrompts) && data.systemPrompts.length > 0) {
+      if (
+        data.systemPrompts &&
+        Array.isArray(data.systemPrompts) &&
+        data.systemPrompts.length > 0
+      ) {
         const existingMap = new Map(systemPrompts.map((p) => [p.id, p]));
         const mergedMap = new Map(systemPrompts.map((p) => [p.id, p]));
         const toSync: SystemPrompt[] = [];
 
         for (const p of data.systemPrompts as SystemPrompt[]) {
           const existing = existingMap.get(p.id);
-          if (!existing || (p.updated_at ?? p.created_at) > (existing.updated_at ?? existing.created_at)) {
+          if (
+            !existing ||
+            (p.updated_at ?? p.created_at) > (existing.updated_at ?? existing.created_at)
+          ) {
             mergedMap.set(p.id, p);
             toSync.push(p);
           }
@@ -914,6 +950,9 @@ export default function App() {
           onDelete={deleteConversation}
           onMove={handleMoveConversation}
           onRename={renameConversation}
+          onExport={handleChatExport}
+          activeConversationId={activeConversation?.id ?? null}
+          messagesLoaded={messages.length > 0 || activeConversation == null}
           onSearch={(q, signal) => createStorage(storageMode).searchConversations(q, signal)}
           onSettingsOpen={() => setSettingsOpen(true)}
           onModeChange={handleStorageToggle}
