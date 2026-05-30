@@ -173,7 +173,10 @@ export default function Sidebar({
   // onSearch is accessed via ref so inline arrow function re-renders in App don't reset the debounce.
   // active flag discards responses from races where a slower request resolves after a newer one.
   useEffect(() => {
-    if (!searchQuery) return;
+    if (!searchQuery) {
+      setSearchResults(null);
+      return;
+    }
 
     let active = true;
     const captured = searchQuery;

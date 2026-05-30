@@ -201,15 +201,16 @@ export class LocalStorage implements StorageAdapter {
       const messages = this.getMessagesRaw(c.id);
       for (const m of messages) {
         if (m.deleted_at) continue;
-        const lowerContent = m.content.toLowerCase();
+        const content = m.content ?? "";
+        const lowerContent = content.toLowerCase();
         const idx = lowerContent.indexOf(lowerQ);
         if (idx !== -1) {
           const start = Math.max(0, idx - 40);
-          const end = Math.min(m.content.length, idx + query.length + 40);
+          const end = Math.min(content.length, idx + query.length + 40);
           snippet =
             (start > 0 ? "…" : "") +
-            m.content.slice(start, end) +
-            (end < m.content.length ? "…" : "");
+            content.slice(start, end) +
+            (end < content.length ? "…" : "");
           break;
         }
       }
