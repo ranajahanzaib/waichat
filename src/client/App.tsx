@@ -242,20 +242,23 @@ export default function App() {
   useEffect(() => {
     try {
       const legacyPrompt = localStorage.getItem("waichat:system-prompt");
-      if (legacyPrompt?.trim()) {
-        const now = Date.now();
-        const migrated: SystemPrompt = {
-          id: generateUUID(),
-          user_id: "default",
-          name: "Default Prompt",
-          content: legacyPrompt.trim(),
-          created_at: now,
-          updated_at: now,
-        };
-        const current = readSystemPromptsFromStorage();
-        const updated = [...current, migrated];
-        localStorage.setItem(SYSTEM_PROMPTS_KEY, JSON.stringify(updated));
-        setSystemPrompts(updated);
+      if (legacyPrompt !== null) {
+        if (legacyPrompt.trim()) {
+          const now = Date.now();
+          const migrated: SystemPrompt = {
+            id: generateUUID(),
+            user_id: "default",
+            name: "Default Prompt",
+            content: legacyPrompt.trim(),
+            created_at: now,
+            updated_at: now,
+          };
+          const current = readSystemPromptsFromStorage();
+          const updated = [...current, migrated];
+          localStorage.setItem(SYSTEM_PROMPTS_KEY, JSON.stringify(updated));
+          setSystemPrompts(updated);
+        }
+        // Always remove so the migration never runs again, even for empty/whitespace values
         localStorage.removeItem("waichat:system-prompt");
       }
     } catch (err) {
@@ -568,6 +571,7 @@ export default function App() {
   };
 
   const handleAddSystemPrompt = async (name: string, content: string) => {
+    const originalList = [...systemPrompts];
     const now = Date.now();
     const prompt: SystemPrompt = {
       id: generateUUID(),
@@ -578,7 +582,7 @@ export default function App() {
       updated_at: now,
     };
 
-    // Update local state immediately so the UI is always responsive
+    // Optimistic update
     const newList = [...systemPrompts, prompt];
     savePromptsLocally(newList);
     setSystemPrompts(newList);
@@ -599,14 +603,18 @@ export default function App() {
         if (!res.ok) throw new Error("Failed to save prompt");
       } catch (err) {
         console.error("Failed to sync system prompt to cloud:", err);
+        savePromptsLocally(originalList);
+        setSystemPrompts(originalList);
+        throw err;
       }
     }
   };
 
   const handleUpdateSystemPrompt = async (id: string, name: string, content: string) => {
+    const originalList = [...systemPrompts];
     const now = Date.now();
 
-    // Update local state immediately
+    // Optimistic update
     const updatedList = systemPrompts.map((p) =>
       p.id === id ? { ...p, name, content, updated_at: now } : p,
     );
@@ -623,12 +631,18 @@ export default function App() {
         if (!res.ok) throw new Error("Failed to update prompt");
       } catch (err) {
         console.error("Failed to sync system prompt update to cloud:", err);
+        savePromptsLocally(originalList);
+        setSystemPrompts(originalList);
+        throw err;
       }
     }
   };
 
   const handleDeleteSystemPrompt = async (id: string) => {
-    // Update local state immediately so the UI is responsive and works offline
+    const originalList = [...systemPrompts];
+    const originalSelectedPromptId = selectedPromptId;
+
+    // Optimistic update
     const filteredList = systemPrompts.filter((p) => p.id !== id);
     savePromptsLocally(filteredList);
     setSystemPrompts(filteredList);
@@ -640,6 +654,10 @@ export default function App() {
         if (!res.ok) throw new Error("Failed to delete prompt");
       } catch (err) {
         console.error("Failed to delete system prompt:", err);
+        savePromptsLocally(originalList);
+        setSystemPrompts(originalList);
+        if (originalSelectedPromptId === id) setSelectedPromptId(originalSelectedPromptId);
+        throw err;
       }
     }
   };
@@ -817,17 +835,27 @@ export default function App() {
         }
       }
 
-      // Restore system prompt library — bulk update preserving original IDs and timestamps
+      // Restore system prompt library — merge by updated_at so newer imported versions win
       if (data.systemPrompts && Array.isArray(data.systemPrompts) && data.systemPrompts.length > 0) {
-        const existingIds = new Set(systemPrompts.map((p) => p.id));
-        const toImport = (data.systemPrompts as SystemPrompt[]).filter((p) => !existingIds.has(p.id));
-        if (toImport.length > 0) {
-          const merged = [...systemPrompts, ...toImport];
+        const existingMap = new Map(systemPrompts.map((p) => [p.id, p]));
+        const mergedMap = new Map(systemPrompts.map((p) => [p.id, p]));
+        const toSync: SystemPrompt[] = [];
+
+        for (const p of data.systemPrompts as SystemPrompt[]) {
+          const existing = existingMap.get(p.id);
+          if (!existing || (p.updated_at ?? p.created_at) > (existing.updated_at ?? existing.created_at)) {
+            mergedMap.set(p.id, p);
+            toSync.push(p);
+          }
+        }
+
+        if (toSync.length > 0) {
+          const merged = Array.from(mergedMap.values());
           savePromptsLocally(merged);
           setSystemPrompts(merged);
           if (syncSettings) {
             await Promise.all(
-              toImport.map(async (p) => {
+              toSync.map(async (p) => {
                 try {
                   const res = await fetch("/api/system-prompts", {
                     method: "POST",
