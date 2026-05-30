@@ -314,7 +314,9 @@ app.get("/api/export", async (c) => {
 });
 
 app.post("/api/conversations", async (c) => {
-  const body = await c.req.json<{ model: string; system_prompt_id?: string; system_prompt?: string }>().catch(() => null);
+  const body = await c.req
+    .json<{ model: string; system_prompt_id?: string; system_prompt?: string }>()
+    .catch(() => null);
   if (!body || typeof body.model !== "string" || !body.model.trim()) {
     return c.json({ error: "Model is required and must be a non-empty string" }, 400);
   }
@@ -332,7 +334,10 @@ app.post("/api/conversations", async (c) => {
     model: body.model,
     created_at: now,
     updated_at: now,
-    system_prompt_id: typeof body.system_prompt_id === "string" && body.system_prompt_id.trim() ? body.system_prompt_id.trim() : null,
+    system_prompt_id:
+      typeof body.system_prompt_id === "string" && body.system_prompt_id.trim()
+        ? body.system_prompt_id.trim()
+        : null,
     system_prompt: systemPromptContent,
   };
   await c.env.DB.prepare(
@@ -349,6 +354,50 @@ app.post("/api/conversations", async (c) => {
     )
     .run();
   return c.json(conversation, 201);
+});
+
+app.get("/api/conversations/search", async (c) => {
+  const q = c.req.query("q")?.trim() ?? "";
+  if (!q) return c.json([]);
+
+  const like = `%${q}%`;
+
+  const rows = await c.env.DB.prepare(
+    `SELECT c.id, c.title, c.updated_at, m.content AS message_content
+     FROM conversations c
+     JOIN messages m ON m.conversation_id = c.id
+     WHERE m.deleted_at IS NULL AND (c.title LIKE ? OR m.content LIKE ?)
+     ORDER BY c.updated_at DESC
+     LIMIT 50`,
+  )
+    .bind(like, like)
+    .all<{ id: string; title: string; updated_at: number; message_content: string }>();
+
+  // Deduplicate by conversation id, keeping first (most recent) match per conversation
+  const seen = new Set<string>();
+  const results: { id: string; title: string; snippet: string; updated_at: number }[] = [];
+
+  for (const row of rows.results) {
+    if (seen.has(row.id)) continue;
+    seen.add(row.id);
+
+    const content = row.message_content ?? "";
+    const lowerContent = content.toLowerCase();
+    const lowerQ = q.toLowerCase();
+    const matchIdx = lowerContent.indexOf(lowerQ);
+
+    let snippet = "";
+    if (matchIdx !== -1) {
+      const start = Math.max(0, matchIdx - 40);
+      const end = Math.min(content.length, matchIdx + q.length + 40);
+      snippet =
+        (start > 0 ? "…" : "") + content.slice(start, end) + (end < content.length ? "…" : "");
+    }
+
+    results.push({ id: row.id, title: row.title, snippet, updated_at: row.updated_at });
+  }
+
+  return c.json(results);
 });
 
 app.get("/api/conversations/:id", async (c) => {
@@ -578,7 +627,10 @@ app.post("/api/system-prompts", async (c) => {
   }
   const now = Date.now();
   const prompt: SystemPrompt = {
-    id: typeof body.id === "string" && body.id.trim() && body.id.length <= 36 ? body.id.trim() : crypto.randomUUID(),
+    id:
+      typeof body.id === "string" && body.id.trim() && body.id.length <= 36
+        ? body.id.trim()
+        : crypto.randomUUID(),
     user_id: "default",
     name,
     content,
@@ -588,7 +640,14 @@ app.post("/api/system-prompts", async (c) => {
   await c.env.DB.prepare(
     "INSERT INTO system_prompts (id, user_id, name, content, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET name = excluded.name, content = excluded.content, updated_at = excluded.updated_at WHERE system_prompts.updated_at IS NULL OR excluded.updated_at >= system_prompts.updated_at",
   )
-    .bind(prompt.id, prompt.user_id, prompt.name, prompt.content, prompt.created_at, prompt.updated_at)
+    .bind(
+      prompt.id,
+      prompt.user_id,
+      prompt.name,
+      prompt.content,
+      prompt.created_at,
+      prompt.updated_at,
+    )
     .run();
   return c.json(prompt, 201);
 });

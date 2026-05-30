@@ -6,10 +6,12 @@ import {
   HatGlasses,
   Loader2,
   Pencil,
+  Search,
   Trash2,
+  X,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Conversation, StorageMode } from "../storage";
+import type { Conversation, ConversationSearchResult, StorageMode } from "../storage";
 import ConfirmModal from "./ConfirmModal";
 
 interface SidebarProps {
@@ -53,6 +55,10 @@ export default function Sidebar({
   streamingStorageMode,
   movingConversationId,
 }: SidebarProps) {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [apiSearchResults, setApiSearchResults] = useState<ConversationSearchResult[] | null>(null);
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [expiryDropdownOpen, setExpiryDropdownOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Conversation | null>(null);
   const [pendingMove, setPendingMove] = useState<Conversation | null>(null);
@@ -155,6 +161,92 @@ export default function Sidebar({
     }
   }, [editingId]);
 
+  useEffect(() => {
+    if (!searchQuery) {
+      setApiSearchResults(null);
+      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+      return;
+    }
+
+    if (currentMode !== "cloud") return;
+
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/conversations/search?q=${encodeURIComponent(searchQuery)}`);
+        if (res.ok) {
+          const data: ConversationSearchResult[] = await res.json();
+          setApiSearchResults(data);
+        }
+      } catch {}
+    }, 300);
+
+    return () => {
+      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    };
+  }, [searchQuery, currentMode]);
+
+  useEffect(() => {
+    const handleEscapeSearch = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && searchQuery) {
+        setSearchQuery("");
+        setApiSearchResults(null);
+      }
+    };
+    document.addEventListener("keydown", handleEscapeSearch);
+    return () => document.removeEventListener("keydown", handleEscapeSearch);
+  }, [searchQuery]);
+
+  const localSearchResults = (): ConversationSearchResult[] => {
+    const lowerQ = searchQuery.toLowerCase();
+    const results: ConversationSearchResult[] = [];
+    for (const c of conversations) {
+      const titleMatch = c.title.toLowerCase().includes(lowerQ);
+      let snippet = "";
+
+      try {
+        const rawMessages = localStorage.getItem(`waichat:messages:${c.id}`);
+        if (rawMessages) {
+          const msgs: { content: string; deleted_at?: number }[] = JSON.parse(rawMessages);
+          for (const m of msgs) {
+            if (m.deleted_at) continue;
+            const lowerContent = m.content.toLowerCase();
+            const idx = lowerContent.indexOf(lowerQ);
+            if (idx !== -1) {
+              const start = Math.max(0, idx - 40);
+              const end = Math.min(m.content.length, idx + lowerQ.length + 40);
+              snippet =
+                (start > 0 ? "…" : "") +
+                m.content.slice(start, end) +
+                (end < m.content.length ? "…" : "");
+              break;
+            }
+          }
+        }
+      } catch {}
+
+      if (titleMatch || snippet) {
+        results.push({ id: c.id, title: c.title, snippet, updated_at: c.updated_at });
+      }
+    }
+    return results;
+  };
+
+  const getDisplayResults = (): ConversationSearchResult[] | null => {
+    if (!searchQuery) return null;
+    if (currentMode === "cloud") {
+      if (apiSearchResults !== null) return apiSearchResults;
+      // While waiting for API, show title matches from loaded conversations
+      const lowerQ = searchQuery.toLowerCase();
+      return conversations
+        .filter((c) => c.title.toLowerCase().includes(lowerQ))
+        .map((c) => ({ id: c.id, title: c.title, snippet: "", updated_at: c.updated_at }));
+    }
+    return localSearchResults();
+  };
+
+  const displayResults = getDisplayResults();
+
   const handleRenameClick = (c: Conversation) => {
     setEditTitle(c.title);
     setEditingId(c.id);
@@ -255,6 +347,37 @@ export default function Sidebar({
           </div>
         </div>
 
+        {/* Search Bar */}
+        <div className="px-4 pb-3">
+          <div className="relative flex items-center">
+            <Search
+              size={14}
+              className="absolute left-2.5 text-gray-400 dark:text-white/30 pointer-events-none shrink-0"
+            />
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search conversations…"
+              className="w-full bg-black/5 dark:bg-white/5 border border-black/8 dark:border-white/10 rounded-lg pl-8 pr-7 py-1.5 text-[13px] text-gray-700 dark:text-white/80 placeholder:text-gray-400 dark:placeholder:text-white/25 outline-none focus:ring-1 focus:ring-black/15 dark:focus:ring-white/15 transition-all"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => {
+                  setSearchQuery("");
+                  setApiSearchResults(null);
+                  searchInputRef.current?.focus();
+                }}
+                className="absolute right-2 text-gray-400 hover:text-gray-700 dark:text-white/30 dark:hover:text-white/70 transition-colors"
+                aria-label="Clear search"
+              >
+                <X size={13} />
+              </button>
+            )}
+          </div>
+        </div>
+
         <nav className="flex-1 overflow-y-auto px-2 pb-2 space-y-1 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-black/10 dark:[&::-webkit-scrollbar-thumb]:bg-white/10 [&::-webkit-scrollbar-thumb]:rounded-full">
           <div className="px-4 py-3 pb-2 text-[10px] md:text-[11px] font-semibold text-gray-400 dark:text-white/30 tracking-[0.05em] flex items-center justify-between">
             {currentMode === "temporary" ? (
@@ -310,237 +433,270 @@ export default function Sidebar({
               conversations.length > 0 && <span className="uppercase text-[11px]">Recent</span>
             )}
           </div>
-          {conversations.length === 0 && (
+          {!displayResults && conversations.length === 0 && (
             <p className="text-sm text-gray-500 dark:text-white/40 text-center mt-10">
               No conversations yet
             </p>
           )}
-          {conversations.map((c) => {
-            const isMoving = movingConversationId === c.id;
-            const isThisStreaming =
-              c.id === streamingConversationId && currentMode === streamingStorageMode;
-            const isMoveDisabled = isMoving || isThisStreaming;
-
-            return (
+          {displayResults !== null && displayResults.length === 0 && (
+            <p className="text-sm text-gray-500 dark:text-white/40 text-center mt-10">
+              No conversations found
+            </p>
+          )}
+          {displayResults !== null &&
+            displayResults.map((result) => (
               <div
-                key={c.id}
-                data-id={c.id}
-                className={`group relative flex items-center rounded-lg pl-3 pr-0 py-1.5 cursor-pointer text-[13px] md:text-sm transition-all duration-150 [--fade-size:1.1rem] hover:[--fade-size:2rem] ${
-                  openMenuId === c.id ? "[--fade-size:2rem]" : ""
-                } ${
-                  activeId === c.id
+                key={result.id}
+                className={`group relative flex flex-col rounded-lg pl-3 pr-3 py-2 cursor-pointer text-[13px] md:text-sm transition-all duration-150 ${
+                  activeId === result.id
                     ? currentMode === "cloud"
                       ? "bg-brand-cloud text-white font-medium"
                       : currentMode === "temporary"
                         ? "bg-slate-500 text-white font-medium"
                         : "bg-brand-local text-gray-900 font-medium"
-                    : `${
-                        openMenuId === c.id
-                          ? "bg-black/8 dark:bg-white/10 text-gray-900 dark:text-white"
-                          : "text-gray-600 dark:text-white/65"
-                      } hover:bg-black/5 hover:text-gray-900 dark:hover:bg-white/5 dark:hover:text-white/95`
+                    : "text-gray-600 dark:text-white/65 hover:bg-black/5 hover:text-gray-900 dark:hover:bg-white/5 dark:hover:text-white/95"
                 }`}
-                onClick={() => {
-                  if (isLongPressRef.current) {
-                    isLongPressRef.current = false;
-                    return;
-                  }
-                  onSelect(c.id);
-                }}
-                onTouchStart={handleTouchStart}
-                onTouchEnd={handleTouchEnd}
-                onTouchMove={handleTouchMove}
-                onContextMenu={(e) => {
-                  if (window.innerWidth < 768) e.preventDefault();
-                }}
+                onClick={() => onSelect(result.id)}
               >
-                {editingId === c.id ? (
-                  <div className="flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
-                    <input
-                      ref={editInputRef}
-                      type="text"
-                      value={editTitle}
-                      onChange={(e) => setEditTitle(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") handleSaveRename(c.id);
-                        if (e.key === "Escape") setEditingId(null);
-                      }}
-                      onBlur={() => !isRenaming && setEditingId(null)}
-                      disabled={isRenaming}
-                      className={`w-full bg-white/50 dark:bg-black/20 border border-black/10 dark:border-white/20 rounded px-1.5 py-0.5 outline-none text-[13px] md:text-sm focus:ring-1 ${
-                        currentMode === "cloud"
-                          ? "focus:ring-brand-cloud/50"
-                          : "focus:ring-brand-local/50"
-                      }`}
-                    />
-                  </div>
-                ) : (
-                  <div
-                    className="flex-1 relative flex items-center gap-2 overflow-hidden min-w-0 w-full transition-all duration-200"
-                    title={isThisStreaming ? "Generation in progress..." : undefined}
-                    style={{
-                      maskImage:
-                        "linear-gradient(to right, black calc(100% - var(--fade-size)), transparent 100%)",
-                      WebkitMaskImage:
-                        "linear-gradient(to right, black calc(100% - var(--fade-size)), transparent 100%)",
-                    }}
+                <span className="truncate font-medium">{result.title}</span>
+                {result.snippet && (
+                  <span
+                    className={`text-[11px] mt-0.5 line-clamp-2 ${
+                      activeId === result.id ? "text-white/70" : "text-gray-400 dark:text-white/35"
+                    }`}
                   >
-                    {isThisStreaming && (
-                      <div
-                        className={`shrink-0 w-1.5 h-1.5 rounded-full animate-pulse ${
-                          activeId === c.id
-                            ? currentMode === "cloud"
-                              ? "bg-white"
-                              : "bg-gray-900"
-                            : currentMode === "cloud"
-                              ? "bg-brand-cloud"
-                              : "bg-brand-local"
+                    {result.snippet}
+                  </span>
+                )}
+              </div>
+            ))}
+          {displayResults === null &&
+            conversations.map((c) => {
+              const isMoving = movingConversationId === c.id;
+              const isThisStreaming =
+                c.id === streamingConversationId && currentMode === streamingStorageMode;
+              const isMoveDisabled = isMoving || isThisStreaming;
+
+              return (
+                <div
+                  key={c.id}
+                  data-id={c.id}
+                  className={`group relative flex items-center rounded-lg pl-3 pr-0 py-1.5 cursor-pointer text-[13px] md:text-sm transition-all duration-150 [--fade-size:1.1rem] hover:[--fade-size:2rem] ${
+                    openMenuId === c.id ? "[--fade-size:2rem]" : ""
+                  } ${
+                    activeId === c.id
+                      ? currentMode === "cloud"
+                        ? "bg-brand-cloud text-white font-medium"
+                        : currentMode === "temporary"
+                          ? "bg-slate-500 text-white font-medium"
+                          : "bg-brand-local text-gray-900 font-medium"
+                      : `${
+                          openMenuId === c.id
+                            ? "bg-black/8 dark:bg-white/10 text-gray-900 dark:text-white"
+                            : "text-gray-600 dark:text-white/65"
+                        } hover:bg-black/5 hover:text-gray-900 dark:hover:bg-white/5 dark:hover:text-white/95`
+                  }`}
+                  onClick={() => {
+                    if (isLongPressRef.current) {
+                      isLongPressRef.current = false;
+                      return;
+                    }
+                    onSelect(c.id);
+                  }}
+                  onTouchStart={handleTouchStart}
+                  onTouchEnd={handleTouchEnd}
+                  onTouchMove={handleTouchMove}
+                  onContextMenu={(e) => {
+                    if (window.innerWidth < 768) e.preventDefault();
+                  }}
+                >
+                  {editingId === c.id ? (
+                    <div className="flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        ref={editInputRef}
+                        type="text"
+                        value={editTitle}
+                        onChange={(e) => setEditTitle(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") handleSaveRename(c.id);
+                          if (e.key === "Escape") setEditingId(null);
+                        }}
+                        onBlur={() => !isRenaming && setEditingId(null)}
+                        disabled={isRenaming}
+                        className={`w-full bg-white/50 dark:bg-black/20 border border-black/10 dark:border-white/20 rounded px-1.5 py-0.5 outline-none text-[13px] md:text-sm focus:ring-1 ${
+                          currentMode === "cloud"
+                            ? "focus:ring-brand-cloud/50"
+                            : "focus:ring-brand-local/50"
                         }`}
                       />
-                    )}
-                    <span className="whitespace-nowrap">{c.title}</span>
-                  </div>
-                )}
-                <div
-                  className={`hidden md:flex items-center shrink-0 transition-all duration-200 overflow-hidden ${
-                    openMenuId === c.id
-                      ? "w-8 ml-2 opacity-100"
-                      : "w-0 opacity-0 group-hover:w-8 group-hover:ml-2 group-hover:opacity-100"
-                  }`}
-                >
-                  <div className="relative">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setIsMobileMenu(false);
-                        setOpenMenuId(openMenuId === c.id ? null : c.id);
+                    </div>
+                  ) : (
+                    <div
+                      className="flex-1 relative flex items-center gap-2 overflow-hidden min-w-0 w-full transition-all duration-200"
+                      title={isThisStreaming ? "Generation in progress..." : undefined}
+                      style={{
+                        maskImage:
+                          "linear-gradient(to right, black calc(100% - var(--fade-size)), transparent 100%)",
+                        WebkitMaskImage:
+                          "linear-gradient(to right, black calc(100% - var(--fade-size)), transparent 100%)",
                       }}
-                      className={`p-1.5 rounded-md focus:outline-none transition-all ${
-                        openMenuId === c.id
-                          ? activeId === c.id
-                            ? "bg-white/20 text-white"
-                            : "bg-black/5 text-gray-900 dark:bg-white/10 dark:text-white"
-                          : activeId === c.id
-                            ? currentMode === "cloud"
-                              ? "text-white/70 hover:text-white opacity-100"
-                              : "text-gray-900/60 hover:text-gray-900 opacity-100"
-                            : "text-gray-400 hover:text-gray-900 dark:text-white/40 dark:hover:text-white/95 opacity-0 group-hover:opacity-100"
-                      }`}
-                      aria-label="Conversation actions"
-                      aria-haspopup="menu"
-                      aria-expanded={openMenuId === c.id}
                     >
-                      <svg
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        className="w-4 h-4"
-                      >
-                        <circle cx="12" cy="12" r="1" strokeWidth="2" />
-                        <circle cx="12" cy="5" r="1" strokeWidth="2" />
-                        <circle cx="12" cy="19" r="1" strokeWidth="2" />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-
-                {openMenuId === c.id && (
+                      {isThisStreaming && (
+                        <div
+                          className={`shrink-0 w-1.5 h-1.5 rounded-full animate-pulse ${
+                            activeId === c.id
+                              ? currentMode === "cloud"
+                                ? "bg-white"
+                                : "bg-gray-900"
+                              : currentMode === "cloud"
+                                ? "bg-brand-cloud"
+                                : "bg-brand-local"
+                          }`}
+                        />
+                      )}
+                      <span className="whitespace-nowrap">{c.title}</span>
+                    </div>
+                  )}
                   <div
-                    ref={menuRef}
-                    role="menu"
-                    className={`${
-                      isMobileMenu ? "fixed" : "absolute right-2 mt-8"
-                    } w-44 rounded-xl bg-white dark:bg-[#1c1c1e] shadow-xl border border-black/5 dark:border-white/10 py-1.5 z-[100] overflow-hidden backdrop-blur-xl`}
-                    style={
-                      isMobileMenu
-                        ? {
-                            top: menuPos.top,
-                            bottom: menuPos.bottom,
-                            left: menuPos.left,
-                          }
-                        : {}
-                    }
+                    className={`hidden md:flex items-center shrink-0 transition-all duration-200 overflow-hidden ${
+                      openMenuId === c.id
+                        ? "w-8 ml-2 opacity-100"
+                        : "w-0 opacity-0 group-hover:w-8 group-hover:ml-2 group-hover:opacity-100"
+                    }`}
                   >
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleRenameClick(c);
-                      }}
-                      disabled={isMoveDisabled}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-left text-[13px] text-gray-700 dark:text-white/80 hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                      role="menuitem"
-                    >
-                      <Pencil size={14} />
-                      Rename
-                    </button>
-                    <div className="h-[0.5px] bg-black/5 dark:bg-white/10 mx-2 my-1" />
-                    {c.is_temporary ? (
-                      <>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setOpenMenuId(null);
-                            setPendingMoveTarget("cloud");
-                            setPendingMove(c);
-                          }}
-                          className="w-full flex items-center gap-2 px-3 py-2 text-left text-[13px] text-gray-700 dark:text-white/80 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
-                          role="menuitem"
-                        >
-                          <Cloud size={14} />
-                          Save Chat to Cloud
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setOpenMenuId(null);
-                            setPendingMoveTarget("local");
-                            setPendingMove(c);
-                          }}
-                          className="w-full flex items-center gap-2 px-3 py-2 text-left text-[13px] text-gray-700 dark:text-white/80 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
-                          role="menuitem"
-                        >
-                          <Database size={14} />
-                          Save Chat to Local
-                        </button>
-                      </>
-                    ) : (
+                    <div className="relative">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          setOpenMenuId(null);
-                          if (!isMoveDisabled) onMove(c.id);
+                          setIsMobileMenu(false);
+                          setOpenMenuId(openMenuId === c.id ? null : c.id);
+                        }}
+                        className={`p-1.5 rounded-md focus:outline-none transition-all ${
+                          openMenuId === c.id
+                            ? activeId === c.id
+                              ? "bg-white/20 text-white"
+                              : "bg-black/5 text-gray-900 dark:bg-white/10 dark:text-white"
+                            : activeId === c.id
+                              ? currentMode === "cloud"
+                                ? "text-white/70 hover:text-white opacity-100"
+                                : "text-gray-900/60 hover:text-gray-900 opacity-100"
+                              : "text-gray-400 hover:text-gray-900 dark:text-white/40 dark:hover:text-white/95 opacity-0 group-hover:opacity-100"
+                        }`}
+                        aria-label="Conversation actions"
+                        aria-haspopup="menu"
+                        aria-expanded={openMenuId === c.id}
+                      >
+                        <svg
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          className="w-4 h-4"
+                        >
+                          <circle cx="12" cy="12" r="1" strokeWidth="2" />
+                          <circle cx="12" cy="5" r="1" strokeWidth="2" />
+                          <circle cx="12" cy="19" r="1" strokeWidth="2" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+
+                  {openMenuId === c.id && (
+                    <div
+                      ref={menuRef}
+                      role="menu"
+                      className={`${
+                        isMobileMenu ? "fixed" : "absolute right-2 mt-8"
+                      } w-44 rounded-xl bg-white dark:bg-[#1c1c1e] shadow-xl border border-black/5 dark:border-white/10 py-1.5 z-[100] overflow-hidden backdrop-blur-xl`}
+                      style={
+                        isMobileMenu
+                          ? {
+                              top: menuPos.top,
+                              bottom: menuPos.bottom,
+                              left: menuPos.left,
+                            }
+                          : {}
+                      }
+                    >
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRenameClick(c);
                         }}
                         disabled={isMoveDisabled}
                         className="w-full flex items-center gap-2 px-3 py-2 text-left text-[13px] text-gray-700 dark:text-white/80 hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                         role="menuitem"
                       >
-                        {isMoving ? (
-                          <Loader2 size={14} className="animate-spin" />
-                        ) : (
-                          <ArrowUpRight size={14} />
-                        )}
-                        Move Chat to {targetMode === "cloud" ? "Cloud" : "Local"}
+                        <Pencil size={14} />
+                        Rename
                       </button>
-                    )}
-                    <div className="h-[0.5px] bg-black/5 dark:bg-white/10 mx-2 my-1" />
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setOpenMenuId(null);
-                        setPendingDelete(c);
-                      }}
-                      disabled={isMoveDisabled}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-left text-[13px] text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                      role="menuitem"
-                    >
-                      <Trash2 size={14} />
-                      Delete
-                    </button>
-                  </div>
-                )}
-              </div>
-            );
-          })}
+                      <div className="h-[0.5px] bg-black/5 dark:bg-white/10 mx-2 my-1" />
+                      {c.is_temporary ? (
+                        <>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenMenuId(null);
+                              setPendingMoveTarget("cloud");
+                              setPendingMove(c);
+                            }}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-left text-[13px] text-gray-700 dark:text-white/80 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                            role="menuitem"
+                          >
+                            <Cloud size={14} />
+                            Save Chat to Cloud
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenMenuId(null);
+                              setPendingMoveTarget("local");
+                              setPendingMove(c);
+                            }}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-left text-[13px] text-gray-700 dark:text-white/80 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                            role="menuitem"
+                          >
+                            <Database size={14} />
+                            Save Chat to Local
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOpenMenuId(null);
+                            if (!isMoveDisabled) onMove(c.id);
+                          }}
+                          disabled={isMoveDisabled}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-left text-[13px] text-gray-700 dark:text-white/80 hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          role="menuitem"
+                        >
+                          {isMoving ? (
+                            <Loader2 size={14} className="animate-spin" />
+                          ) : (
+                            <ArrowUpRight size={14} />
+                          )}
+                          Move Chat to {targetMode === "cloud" ? "Cloud" : "Local"}
+                        </button>
+                      )}
+                      <div className="h-[0.5px] bg-black/5 dark:bg-white/10 mx-2 my-1" />
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpenMenuId(null);
+                          setPendingDelete(c);
+                        }}
+                        disabled={isMoveDisabled}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-left text-[13px] text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        role="menuitem"
+                      >
+                        <Trash2 size={14} />
+                        Delete
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
         </nav>
 
         <div className="p-4 border-t-[0.5px] border-black/10 dark:border-white/10 flex items-center gap-3">

@@ -30,7 +30,11 @@ export interface DeleteMessageResult {
 export interface StorageAdapter {
   getConversations(): Promise<Conversation[]>;
   getConversation(id: string): Promise<{ conversation: Conversation; messages: Message[] } | null>;
-  createConversation(model: string, systemPromptId?: string | null, systemPromptContent?: string | null): Promise<Conversation>;
+  createConversation(
+    model: string,
+    systemPromptId?: string | null,
+    systemPromptContent?: string | null,
+  ): Promise<Conversation>;
   deleteConversation(id: string): Promise<void>;
   updateConversationModel(id: string, model: string): Promise<void>;
   saveMessage(message: Omit<Message, "id" | "created_at"> & { id?: string }): Promise<Message>;
@@ -45,6 +49,13 @@ export interface StorageAdapter {
 }
 
 export type StorageMode = "cloud" | "local" | "temporary";
+
+export interface ConversationSearchResult {
+  id: string;
+  title: string;
+  snippet: string;
+  updated_at: number;
+}
 
 import { CloudStorage } from "./cloud";
 import { LocalStorage } from "./local";
