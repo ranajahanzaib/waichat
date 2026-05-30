@@ -85,8 +85,8 @@ export class CloudStorage implements StorageAdapter {
       throw new Error(errorData.error || "Import failed");
     }
   }
-  async searchConversations(query: string): Promise<ConversationSearchResult[]> {
-    const res = await fetch(`/api/conversations/search?q=${encodeURIComponent(query)}`);
+  async searchConversations(query: string, signal?: AbortSignal): Promise<ConversationSearchResult[]> {
+    const res = await fetch(`/api/conversations/search?q=${encodeURIComponent(query)}`, { signal });
     if (!res.ok) return [];
     return res.json();
   }

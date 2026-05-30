@@ -189,7 +189,7 @@ export class LocalStorage implements StorageAdapter {
     this.setMessages(conversation.id, messages);
   }
 
-  async searchConversations(query: string): Promise<ConversationSearchResult[]> {
+  async searchConversations(query: string, _signal?: AbortSignal): Promise<ConversationSearchResult[]> {
     const trimmed = query.trim();
     if (!trimmed) return [];
     const lowerQ = trimmed.toLowerCase();

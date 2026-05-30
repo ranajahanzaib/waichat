@@ -26,7 +26,7 @@ interface SidebarProps {
   onRename: (id: string, title: string) => Promise<void>;
   onSettingsOpen: () => void;
   onModeChange: (mode: StorageMode) => void;
-  onSearch: (query: string) => Promise<ConversationSearchResult[]>;
+  onSearch: (query: string, signal?: AbortSignal) => Promise<ConversationSearchResult[]>;
   currentMode: StorageMode;
   tempExpiry: string;
   onTempExpiryChange: (value: string) => void;
@@ -186,9 +186,10 @@ export default function Sidebar({
 
     let active = true;
     const captured = searchQuery;
+    const controller = new AbortController();
     const timer = setTimeout(async () => {
       try {
-        const results = await onSearchRef.current(captured);
+        const results = await onSearchRef.current(captured, controller.signal);
         if (active) setSearchResults({ q: captured, results });
       } catch (err: any) {
         if (err.name !== "AbortError") console.error(err);
@@ -197,6 +198,7 @@ export default function Sidebar({
 
     return () => {
       active = false;
+      controller.abort();
       clearTimeout(timer);
     };
   }, [searchQuery]);
