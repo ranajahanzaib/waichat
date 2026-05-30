@@ -10,7 +10,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Conversation, ConversationSearchResult, StorageMode } from "../storage";
 import ConfirmModal from "./ConfirmModal";
 
@@ -201,7 +201,7 @@ export default function Sidebar({
     };
   }, [searchQuery]);
 
-  const getDisplayResults = (): ConversationSearchResult[] | null => {
+  const displayResults = useMemo(() => {
     if (!searchQuery) return null;
     // Only use stored results if they belong to the current query — no async clear needed
     if (searchResults?.q === searchQuery) return searchResults.results;
@@ -210,9 +210,7 @@ export default function Sidebar({
     return conversations
       .filter((c) => c.title.toLowerCase().includes(lowerQ))
       .map((c) => ({ id: c.id, title: c.title, snippet: "", updated_at: c.updated_at }));
-  };
-
-  const displayResults = getDisplayResults();
+  }, [searchQuery, searchResults, conversations]);
 
   const handleRenameClick = (c: Conversation) => {
     setEditTitle(c.title);

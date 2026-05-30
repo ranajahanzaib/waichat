@@ -190,7 +190,9 @@ export class LocalStorage implements StorageAdapter {
   }
 
   async searchConversations(query: string): Promise<ConversationSearchResult[]> {
-    const lowerQ = query.toLowerCase();
+    const trimmed = query.trim();
+    if (!trimmed) return [];
+    const lowerQ = trimmed.toLowerCase();
     const conversations = await this.getConversations();
     const results: ConversationSearchResult[] = [];
 
