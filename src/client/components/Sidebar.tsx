@@ -67,6 +67,12 @@ export default function Sidebar({
   useEffect(() => {
     onSearchRef.current = onSearch;
   }, [onSearch]);
+
+  useEffect(() => {
+    setSearchQuery("");
+    setSearchResults(null);
+  }, [currentMode]);
+
   const [expiryDropdownOpen, setExpiryDropdownOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Conversation | null>(null);
   const [pendingMove, setPendingMove] = useState<Conversation | null>(null);
@@ -431,7 +437,11 @@ export default function Sidebar({
                 {result.snippet && (
                   <span
                     className={`text-[11px] mt-0.5 line-clamp-2 ${
-                      activeId === result.id ? "text-white/70" : "text-gray-400 dark:text-white/35"
+                      activeId === result.id
+                        ? currentMode === "local"
+                          ? "text-gray-900/70"
+                          : "text-white/70"
+                        : "text-gray-400 dark:text-white/35"
                     }`}
                   >
                     {result.snippet}
