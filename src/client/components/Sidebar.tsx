@@ -206,19 +206,21 @@ export default function Sidebar({
         try {
           const rawMessages = localStorage.getItem(`waichat:messages:${c.id}`);
           if (rawMessages) {
-            const msgs: { content: string; deleted_at?: number }[] = JSON.parse(rawMessages);
-            for (const m of msgs) {
-              if (m.deleted_at) continue;
-              const lowerContent = m.content.toLowerCase();
-              const idx = lowerContent.indexOf(lowerQ);
-              if (idx !== -1) {
-                const start = Math.max(0, idx - 40);
-                const end = Math.min(m.content.length, idx + lowerQ.length + 40);
-                snippet =
-                  (start > 0 ? "…" : "") +
-                  m.content.slice(start, end) +
-                  (end < m.content.length ? "…" : "");
-                break;
+            const msgs = JSON.parse(rawMessages);
+            if (Array.isArray(msgs)) {
+              for (const m of msgs) {
+                if (m.deleted_at) continue;
+                const lowerContent = m.content.toLowerCase();
+                const idx = lowerContent.indexOf(lowerQ);
+                if (idx !== -1) {
+                  const start = Math.max(0, idx - 40);
+                  const end = Math.min(m.content.length, idx + lowerQ.length + 40);
+                  snippet =
+                    (start > 0 ? "…" : "") +
+                    m.content.slice(start, end) +
+                    (end < m.content.length ? "…" : "");
+                  break;
+                }
               }
             }
           }
@@ -232,18 +234,6 @@ export default function Sidebar({
 
     return () => clearTimeout(timer);
   }, [searchQuery, currentMode, conversations]);
-
-  useEffect(() => {
-    const handleEscapeSearch = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && searchQuery) {
-        setSearchQuery("");
-        setApiSearchResults(null);
-        setLocalSearchResults(null);
-      }
-    };
-    document.addEventListener("keydown", handleEscapeSearch);
-    return () => document.removeEventListener("keydown", handleEscapeSearch);
-  }, [searchQuery]);
 
   const getDisplayResults = (): ConversationSearchResult[] | null => {
     if (!searchQuery) return null;
@@ -373,6 +363,14 @@ export default function Sidebar({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape" && searchQuery) {
+                  e.preventDefault();
+                  setSearchQuery("");
+                  setApiSearchResults(null);
+                  setLocalSearchResults(null);
+                }
+              }}
               placeholder="Search conversations…"
               className="w-full bg-black/5 dark:bg-white/5 border border-black/8 dark:border-white/10 rounded-lg pl-8 pr-7 py-1.5 text-[13px] text-gray-700 dark:text-white/80 placeholder:text-gray-400 dark:placeholder:text-white/25 outline-none focus:ring-1 focus:ring-black/15 dark:focus:ring-white/15 transition-all"
             />

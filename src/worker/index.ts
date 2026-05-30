@@ -364,7 +364,7 @@ app.get("/api/conversations/search", async (c) => {
   const like = `%${escaped}%`;
 
   const rows = await c.env.DB.prepare(
-    `SELECT c.id, c.title, c.updated_at, MAX(m.content) AS message_content
+    `SELECT c.id, c.title, c.updated_at, m.content AS message_content, MAX(m.created_at)
      FROM conversations c
      LEFT JOIN messages m ON m.conversation_id = c.id AND m.deleted_at IS NULL AND m.content LIKE ? ESCAPE '\\'
      WHERE c.title LIKE ? ESCAPE '\\' OR m.id IS NOT NULL
