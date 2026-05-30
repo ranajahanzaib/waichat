@@ -162,68 +162,81 @@ export default function Sidebar({
     }
   }, [editingId]);
 
+  // Immediately clear stale results on every query/mode change so title fallback shows instantly
   useEffect(() => {
-    if (!searchQuery) {
-      setApiSearchResults(null);
-      setLocalSearchResults(null);
-      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
-      return;
-    }
+    setApiSearchResults(null);
+    setLocalSearchResults(null);
+  }, [searchQuery, currentMode]);
+
+  // Debounced cloud search — no dependency on `conversations` to avoid redundant requests
+  useEffect(() => {
+    if (currentMode !== "cloud" || !searchQuery) return;
 
     const controller = new AbortController();
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
 
     searchDebounceRef.current = setTimeout(async () => {
-      if (currentMode === "cloud") {
-        try {
-          const res = await fetch(
-            `/api/conversations/search?q=${encodeURIComponent(searchQuery)}`,
-            { signal: controller.signal },
-          );
-          if (res.ok) {
-            const data: ConversationSearchResult[] = await res.json();
-            setApiSearchResults(data);
-          }
-        } catch (err: any) {
-          if (err.name !== "AbortError") console.error(err);
+      try {
+        const res = await fetch(
+          `/api/conversations/search?q=${encodeURIComponent(searchQuery)}`,
+          { signal: controller.signal },
+        );
+        if (res.ok) {
+          const data: ConversationSearchResult[] = await res.json();
+          setApiSearchResults(data);
         }
-      } else {
-        const lowerQ = searchQuery.toLowerCase();
-        const results: ConversationSearchResult[] = [];
-        for (const c of conversations) {
-          const titleMatch = c.title.toLowerCase().includes(lowerQ);
-          let snippet = "";
-          try {
-            const rawMessages = localStorage.getItem(`waichat:messages:${c.id}`);
-            if (rawMessages) {
-              const msgs: { content: string; deleted_at?: number }[] = JSON.parse(rawMessages);
-              for (const m of msgs) {
-                if (m.deleted_at) continue;
-                const lowerContent = m.content.toLowerCase();
-                const idx = lowerContent.indexOf(lowerQ);
-                if (idx !== -1) {
-                  const start = Math.max(0, idx - 40);
-                  const end = Math.min(m.content.length, idx + lowerQ.length + 40);
-                  snippet =
-                    (start > 0 ? "…" : "") +
-                    m.content.slice(start, end) +
-                    (end < m.content.length ? "…" : "");
-                  break;
-                }
-              }
-            }
-          } catch {}
-          if (titleMatch || snippet) {
-            results.push({ id: c.id, title: c.title, snippet, updated_at: c.updated_at });
-          }
-        }
-        setLocalSearchResults(results);
+      } catch (err: any) {
+        if (err.name !== "AbortError") console.error(err);
       }
     }, 300);
 
     return () => {
       if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
       controller.abort();
+    };
+  }, [searchQuery, currentMode]);
+
+  // Debounced local search — depends on conversations so it re-runs when the list updates
+  useEffect(() => {
+    if (currentMode === "cloud" || !searchQuery) return;
+
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+
+    searchDebounceRef.current = setTimeout(() => {
+      const lowerQ = searchQuery.toLowerCase();
+      const results: ConversationSearchResult[] = [];
+      for (const c of conversations) {
+        const titleMatch = c.title.toLowerCase().includes(lowerQ);
+        let snippet = "";
+        try {
+          const rawMessages = localStorage.getItem(`waichat:messages:${c.id}`);
+          if (rawMessages) {
+            const msgs: { content: string; deleted_at?: number }[] = JSON.parse(rawMessages);
+            for (const m of msgs) {
+              if (m.deleted_at) continue;
+              const lowerContent = m.content.toLowerCase();
+              const idx = lowerContent.indexOf(lowerQ);
+              if (idx !== -1) {
+                const start = Math.max(0, idx - 40);
+                const end = Math.min(m.content.length, idx + lowerQ.length + 40);
+                snippet =
+                  (start > 0 ? "…" : "") +
+                  m.content.slice(start, end) +
+                  (end < m.content.length ? "…" : "");
+                break;
+              }
+            }
+          }
+        } catch {}
+        if (titleMatch || snippet) {
+          results.push({ id: c.id, title: c.title, snippet, updated_at: c.updated_at });
+        }
+      }
+      setLocalSearchResults(results);
+    }, 300);
+
+    return () => {
+      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
     };
   }, [searchQuery, currentMode, conversations]);
 
