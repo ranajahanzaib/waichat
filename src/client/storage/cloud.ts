@@ -1,4 +1,4 @@
-import type { Conversation, DeleteMessageResult, Message, StorageAdapter } from "./index";
+import type { Conversation, ConversationSearchResult, DeleteMessageResult, Message, StorageAdapter } from "./index";
 
 export class CloudStorage implements StorageAdapter {
   async getConversations(): Promise<Conversation[]> {
@@ -85,6 +85,12 @@ export class CloudStorage implements StorageAdapter {
       throw new Error(errorData.error || "Import failed");
     }
   }
+  async searchConversations(query: string): Promise<ConversationSearchResult[]> {
+    const res = await fetch(`/api/conversations/search?q=${encodeURIComponent(query)}`);
+    if (!res.ok) return [];
+    return res.json();
+  }
+
   async clear(): Promise<void> {
     const res = await fetch("/api/conversations", { method: "DELETE" });
     if (!res.ok) {

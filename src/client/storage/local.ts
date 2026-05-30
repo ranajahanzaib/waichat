@@ -1,4 +1,4 @@
-import type { Conversation, DeleteMessageResult, Message, StorageAdapter } from "./index";
+import type { Conversation, ConversationSearchResult, DeleteMessageResult, Message, StorageAdapter } from "./index";
 
 const CONVERSATIONS_KEY = "waichat:conversations";
 const MESSAGES_KEY = (id: string) => `waichat:messages:${id}`;
@@ -187,6 +187,39 @@ export class LocalStorage implements StorageAdapter {
     });
     this.setConversations(existing);
     this.setMessages(conversation.id, messages);
+  }
+
+  async searchConversations(query: string): Promise<ConversationSearchResult[]> {
+    const lowerQ = query.toLowerCase();
+    const conversations = await this.getConversations();
+    const results: ConversationSearchResult[] = [];
+
+    for (const c of conversations) {
+      const titleMatch = c.title.toLowerCase().includes(lowerQ);
+      let snippet = "";
+
+      const messages = this.getMessagesRaw(c.id);
+      for (const m of messages) {
+        if (m.deleted_at) continue;
+        const lowerContent = m.content.toLowerCase();
+        const idx = lowerContent.indexOf(lowerQ);
+        if (idx !== -1) {
+          const start = Math.max(0, idx - 40);
+          const end = Math.min(m.content.length, idx + query.length + 40);
+          snippet =
+            (start > 0 ? "…" : "") +
+            m.content.slice(start, end) +
+            (end < m.content.length ? "…" : "");
+          break;
+        }
+      }
+
+      if (titleMatch || snippet) {
+        results.push({ id: c.id, title: c.title, snippet, updated_at: c.updated_at });
+      }
+    }
+
+    return results;
   }
 
   async cleanup(expirySetting: string, isInitial: boolean): Promise<string[]> {

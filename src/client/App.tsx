@@ -914,6 +914,7 @@ export default function App() {
           onDelete={deleteConversation}
           onMove={handleMoveConversation}
           onRename={renameConversation}
+          onSearch={(q) => createStorage(storageMode).searchConversations(q)}
           onSettingsOpen={() => setSettingsOpen(true)}
           onModeChange={handleStorageToggle}
           currentMode={storageMode}

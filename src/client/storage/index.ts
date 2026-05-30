@@ -44,6 +44,7 @@ export interface StorageAdapter {
     id: string,
   ): Promise<{ conversation: Conversation; messages: Message[] } | null>;
   importConversation(conversation: Conversation, messages: Message[]): Promise<void>;
+  searchConversations(query: string): Promise<ConversationSearchResult[]>;
   clear?(): Promise<void>;
   cleanup?(expirySetting: string, isInitial: boolean): Promise<string[]>;
 }

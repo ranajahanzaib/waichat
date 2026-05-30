@@ -26,6 +26,7 @@ interface SidebarProps {
   onRename: (id: string, title: string) => Promise<void>;
   onSettingsOpen: () => void;
   onModeChange: (mode: StorageMode) => void;
+  onSearch: (query: string) => Promise<ConversationSearchResult[]>;
   currentMode: StorageMode;
   tempExpiry: string;
   onTempExpiryChange: (value: string) => void;
@@ -47,6 +48,7 @@ export default function Sidebar({
   onRename,
   onSettingsOpen,
   onModeChange,
+  onSearch,
   currentMode,
   tempExpiry,
   onTempExpiryChange,
@@ -56,8 +58,10 @@ export default function Sidebar({
   movingConversationId,
 }: SidebarProps) {
   const [searchQuery, setSearchQuery] = useState("");
-  const [apiSearchResults, setApiSearchResults] = useState<ConversationSearchResult[] | null>(null);
-  const [localSearchResults, setLocalSearchResults] = useState<ConversationSearchResult[] | null>(null);
+  const [searchResults, setSearchResults] = useState<{
+    q: string;
+    results: ConversationSearchResult[];
+  } | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [expiryDropdownOpen, setExpiryDropdownOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Conversation | null>(null);
@@ -161,88 +165,28 @@ export default function Sidebar({
     }
   }, [editingId]);
 
-  // Immediately clear stale results on every query/mode change so title fallback shows instantly
+  // Debounced search via StorageAdapter — tagged with the query so stale results are never shown
   useEffect(() => {
-    setApiSearchResults(null);
-    setLocalSearchResults(null);
-  }, [searchQuery, currentMode]);
+    if (!searchQuery) return;
 
-  // Debounced cloud search — no dependency on `conversations` to avoid redundant requests
-  useEffect(() => {
-    if (currentMode !== "cloud" || !searchQuery) return;
-
-    const controller = new AbortController();
+    const captured = searchQuery;
     const timer = setTimeout(async () => {
       try {
-        const res = await fetch(
-          `/api/conversations/search?q=${encodeURIComponent(searchQuery)}`,
-          { signal: controller.signal },
-        );
-        if (res.ok) {
-          const data: ConversationSearchResult[] = await res.json();
-          setApiSearchResults(data);
-        }
+        const results = await onSearch(captured);
+        setSearchResults({ q: captured, results });
       } catch (err: any) {
         if (err.name !== "AbortError") console.error(err);
       }
     }, 300);
 
-    return () => {
-      clearTimeout(timer);
-      controller.abort();
-    };
-  }, [searchQuery, currentMode]);
-
-  // Debounced local search — depends on conversations so it re-runs when the list updates
-  useEffect(() => {
-    if (currentMode === "cloud" || !searchQuery) return;
-
-    const timer = setTimeout(() => {
-      const lowerQ = searchQuery.toLowerCase();
-      const results: ConversationSearchResult[] = [];
-      for (const c of conversations) {
-        const titleMatch = c.title.toLowerCase().includes(lowerQ);
-        let snippet = "";
-        try {
-          const rawMessages = localStorage.getItem(`waichat:messages:${c.id}`);
-          if (rawMessages) {
-            const msgs = JSON.parse(rawMessages);
-            if (Array.isArray(msgs)) {
-              for (const m of msgs) {
-                if (m.deleted_at) continue;
-                const lowerContent = m.content.toLowerCase();
-                const idx = lowerContent.indexOf(lowerQ);
-                if (idx !== -1) {
-                  const start = Math.max(0, idx - 40);
-                  const end = Math.min(m.content.length, idx + lowerQ.length + 40);
-                  snippet =
-                    (start > 0 ? "…" : "") +
-                    m.content.slice(start, end) +
-                    (end < m.content.length ? "…" : "");
-                  break;
-                }
-              }
-            }
-          }
-        } catch {}
-        if (titleMatch || snippet) {
-          results.push({ id: c.id, title: c.title, snippet, updated_at: c.updated_at });
-        }
-      }
-      setLocalSearchResults(results);
-    }, 300);
-
     return () => clearTimeout(timer);
-  }, [searchQuery, currentMode, conversations]);
+  }, [searchQuery, onSearch]);
 
   const getDisplayResults = (): ConversationSearchResult[] | null => {
     if (!searchQuery) return null;
-    if (currentMode === "cloud") {
-      if (apiSearchResults !== null) return apiSearchResults;
-    } else {
-      if (localSearchResults !== null) return localSearchResults;
-    }
-    // While waiting for debounced results, show instant title matches
+    // Only use stored results if they belong to the current query — no async clear needed
+    if (searchResults?.q === searchQuery) return searchResults.results;
+    // While debounce is pending, show instant title matches (synchronous, no flash)
     const lowerQ = searchQuery.toLowerCase();
     return conversations
       .filter((c) => c.title.toLowerCase().includes(lowerQ))
@@ -367,8 +311,7 @@ export default function Sidebar({
                 if (e.key === "Escape" && searchQuery) {
                   e.preventDefault();
                   setSearchQuery("");
-                  setApiSearchResults(null);
-                  setLocalSearchResults(null);
+                  setSearchResults(null);
                 }
               }}
               placeholder="Search conversations…"
@@ -378,8 +321,7 @@ export default function Sidebar({
               <button
                 onClick={() => {
                   setSearchQuery("");
-                  setApiSearchResults(null);
-                  setLocalSearchResults(null);
+                  setSearchResults(null);
                   searchInputRef.current?.focus();
                 }}
                 className="absolute right-2 text-gray-400 hover:text-gray-700 dark:text-white/30 dark:hover:text-white/70 transition-colors"
