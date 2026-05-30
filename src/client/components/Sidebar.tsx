@@ -63,6 +63,10 @@ export default function Sidebar({
     results: ConversationSearchResult[];
   } | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const onSearchRef = useRef(onSearch);
+  useEffect(() => {
+    onSearchRef.current = onSearch;
+  }, [onSearch]);
   const [expiryDropdownOpen, setExpiryDropdownOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Conversation | null>(null);
   const [pendingMove, setPendingMove] = useState<Conversation | null>(null);
@@ -165,22 +169,28 @@ export default function Sidebar({
     }
   }, [editingId]);
 
-  // Debounced search via StorageAdapter — tagged with the query so stale results are never shown
+  // Debounced search via StorageAdapter — tagged with the query so stale results are never shown.
+  // onSearch is accessed via ref so inline arrow function re-renders in App don't reset the debounce.
+  // active flag discards responses from races where a slower request resolves after a newer one.
   useEffect(() => {
     if (!searchQuery) return;
 
+    let active = true;
     const captured = searchQuery;
     const timer = setTimeout(async () => {
       try {
-        const results = await onSearch(captured);
-        setSearchResults({ q: captured, results });
+        const results = await onSearchRef.current(captured);
+        if (active) setSearchResults({ q: captured, results });
       } catch (err: any) {
         if (err.name !== "AbortError") console.error(err);
       }
     }, 300);
 
-    return () => clearTimeout(timer);
-  }, [searchQuery, onSearch]);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [searchQuery]);
 
   const getDisplayResults = (): ConversationSearchResult[] | null => {
     if (!searchQuery) return null;
@@ -310,6 +320,7 @@ export default function Sidebar({
               onKeyDown={(e) => {
                 if (e.key === "Escape" && searchQuery) {
                   e.preventDefault();
+                  e.stopPropagation();
                   setSearchQuery("");
                   setSearchResults(null);
                 }
