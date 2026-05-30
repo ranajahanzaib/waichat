@@ -312,6 +312,7 @@ export default function App() {
           if (!cloud) return true;
           return (p.updated_at ?? p.created_at) > (cloud.updated_at ?? cloud.created_at);
         });
+        let hasUploadError = false;
         await Promise.all(
           localOnlyOrModified.map(async (p) => {
             try {
@@ -323,9 +324,15 @@ export default function App() {
               if (!postRes.ok) throw new Error(`Failed to sync prompt: ${p.name}`);
             } catch (err) {
               console.error(err);
+              hasUploadError = true;
             }
           }),
         );
+        // Abort before overwriting localStorage — any failed upload means the
+        // cloud list is incomplete and would permanently delete local-only prompts
+        if (hasUploadError) {
+          throw new Error("Some prompts failed to upload. Aborting sync to prevent local data loss.");
+        }
         if (!active) return;
 
         // Re-fetch the merged list from cloud
@@ -571,7 +578,6 @@ export default function App() {
   };
 
   const handleAddSystemPrompt = async (name: string, content: string) => {
-    const originalList = [...systemPrompts];
     const now = Date.now();
     const prompt: SystemPrompt = {
       id: generateUUID(),
@@ -602,19 +608,14 @@ export default function App() {
         });
         if (!res.ok) throw new Error("Failed to save prompt");
       } catch (err) {
-        console.error("Failed to sync system prompt to cloud:", err);
-        savePromptsLocally(originalList);
-        setSystemPrompts(originalList);
-        throw err;
+        // Local state is kept — background sync will retry on next load/sync enable
+        console.error("Failed to sync system prompt to cloud (will retry on next sync):", err);
       }
     }
   };
 
   const handleUpdateSystemPrompt = async (id: string, name: string, content: string) => {
-    const originalList = [...systemPrompts];
     const now = Date.now();
-
-    // Optimistic update
     const updatedList = systemPrompts.map((p) =>
       p.id === id ? { ...p, name, content, updated_at: now } : p,
     );
@@ -630,10 +631,8 @@ export default function App() {
         });
         if (!res.ok) throw new Error("Failed to update prompt");
       } catch (err) {
-        console.error("Failed to sync system prompt update to cloud:", err);
-        savePromptsLocally(originalList);
-        setSystemPrompts(originalList);
-        throw err;
+        // Local state is kept — background sync will retry on next load/sync enable
+        console.error("Failed to sync system prompt update to cloud (will retry on next sync):", err);
       }
     }
   };
