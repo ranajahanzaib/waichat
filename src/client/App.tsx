@@ -720,14 +720,14 @@ export default function App() {
 
   const handleChatExport = useCallback(
     (_id: string, format: "markdown" | "pdf") => {
-      if (!activeConversation || !messages.length) return;
+      if (!activeConversation || !activeBranch.length) return;
       if (format === "markdown") {
-        exportAsMarkdown(activeConversation, messages);
+        exportAsMarkdown(activeConversation, activeBranch);
       } else {
-        exportAsPdf(activeConversation, messages);
+        exportAsPdf(activeConversation, activeBranch);
       }
     },
-    [activeConversation, messages],
+    [activeConversation, activeBranch],
   );
 
   const handleExportWorkspace = async (scope: "local" | "cloud" | "both") => {
@@ -952,7 +952,7 @@ export default function App() {
           onRename={renameConversation}
           onExport={handleChatExport}
           activeConversationId={activeConversation?.id ?? null}
-          messagesLoaded={messages.length > 0 || activeConversation == null}
+          messagesLoaded={activeBranch.length > 0 || activeConversation == null}
           onSearch={(q, signal) => createStorage(storageMode).searchConversations(q, signal)}
           onSettingsOpen={() => setSettingsOpen(true)}
           onModeChange={handleStorageToggle}

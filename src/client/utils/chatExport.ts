@@ -59,6 +59,7 @@ export function exportAsPdf(conversation: Conversation, messages: Message[]): vo
           const inner = part.replace(/^```[^\n]*\n?/, "").replace(/```$/, "");
           return `<pre><code>${escapeHtml(inner)}</code></pre>`;
         }
+        if (!part) return "";
         return `<p>${escapeHtml(part).replace(/\n/g, "<br>")}</p>`;
       })
       .join("");
@@ -163,11 +164,11 @@ export function exportAsPdf(conversation: Conversation, messages: Message[]): vo
   document.head.appendChild(styleEl);
   document.body.appendChild(div);
 
-  window.print();
-
-  // Clean up after print dialog closes
-  setTimeout(() => {
+  const cleanup = () => {
     div.remove();
     styleEl.remove();
-  }, 1000);
+  };
+
+  window.addEventListener("afterprint", cleanup, { once: true });
+  window.print();
 }

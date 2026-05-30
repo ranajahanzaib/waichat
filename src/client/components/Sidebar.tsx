@@ -91,6 +91,11 @@ export default function Sidebar({
   const [editTitle, setEditTitle] = useState("");
   const [isRenaming, setIsRenaming] = useState(false);
   const [exportMenuId, setExportMenuId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setExportMenuId(null);
+  }, [openMenuId]);
+
   const [isMobileMenu, setIsMobileMenu] = useState(false);
   const [menuPos, setMenuPos] = useState<{ top?: number; bottom?: number; left?: number }>({});
   const MENU_HEIGHT_ESTIMATE = 200;
