@@ -40,7 +40,7 @@ export interface SystemPrompt {
   name: string;
   content: string;
   created_at: number;
-  updated_at: number;
+  updated_at?: number | null;
 }
 
 export interface ChatRequest {

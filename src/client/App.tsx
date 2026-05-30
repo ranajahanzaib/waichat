@@ -28,7 +28,7 @@ export interface SystemPrompt {
   name: string;
   content: string;
   created_at: number;
-  updated_at: number;
+  updated_at?: number | null;
 }
 
 export type ThemeMode = "system" | "light" | "dark";
@@ -826,17 +826,20 @@ export default function App() {
           savePromptsLocally(merged);
           setSystemPrompts(merged);
           if (syncSettings) {
-            for (const p of toImport) {
-              try {
-                await fetch("/api/system-prompts", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify(p),
-                });
-              } catch (err) {
-                console.error("Failed to sync imported prompt:", err);
-              }
-            }
+            await Promise.all(
+              toImport.map(async (p) => {
+                try {
+                  const res = await fetch("/api/system-prompts", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(p),
+                  });
+                  if (!res.ok) throw new Error(`Failed to sync imported prompt: ${p.name}`);
+                } catch (err) {
+                  console.error("Failed to sync imported prompt:", err);
+                }
+              }),
+            );
           }
         }
       }
