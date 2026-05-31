@@ -485,6 +485,29 @@ export default function App() {
     };
   }, [storageDropdownOpen]);
 
+  // Close mobile menu when clicking outside or pressing Escape
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (!(e.target instanceof Element) || !e.target.closest(".mobile-menu-container")) {
+        setMobileMenuOpen(false);
+      }
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMobileMenuOpen(false);
+    };
+
+    if (mobileMenuOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener("keydown", handleKeyDown);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [mobileMenuOpen]);
+
   const closeSidebarOnMobile = () => {
     if (window.innerWidth < MOBILE_BREAKPOINT) {
       setSidebarOpen(false);
@@ -1122,7 +1145,7 @@ export default function App() {
               </div>
 
               {/* Mobile: 3-dot menu for Export, Temporary Chat, New Chat */}
-              <div className="relative md:hidden">
+              <div className="relative md:hidden mobile-menu-container">
                 <button
                   onClick={() => setMobileMenuOpen((o) => !o)}
                   className="w-8 h-8 rounded-md flex items-center justify-center text-gray-500 hover:text-gray-900 hover:bg-black/5 dark:text-white/65 dark:hover:text-white/95 dark:hover:bg-white/5 transition-colors focus:outline-none"
@@ -1132,8 +1155,6 @@ export default function App() {
                   <MoreVertical size={18} strokeWidth={2} />
                 </button>
                 {mobileMenuOpen && (
-                  <>
-                    <div className="fixed inset-0 z-40" onClick={() => setMobileMenuOpen(false)} />
                     <div role="menu" className="absolute right-0 top-full mt-1 w-48 p-1.5 rounded-2xl bg-white/95 dark:bg-[#1c1c1e]/95 shadow-xl border border-black/5 dark:border-white/10 z-50 overflow-hidden backdrop-blur-xl">
                       {activeConversation && activeBranch.length > 0 && (
                         <>
@@ -1185,7 +1206,6 @@ export default function App() {
                         New Chat
                       </button>
                     </div>
-                  </>
                 )}
               </div>
             </div>
