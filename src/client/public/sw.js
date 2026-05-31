@@ -17,7 +17,13 @@ function isApiRequest(url) {
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(STATIC_CACHE).then((cache) =>
-      cache.addAll([OFFLINE_URL])
+      cache.addAll([
+        OFFLINE_URL,
+        "/manifest.json",
+        "/favicon.ico",
+        "/icon-192.png",
+        "/icon-512.png",
+      ])
     ).then(() => self.skipWaiting())
   );
 });
@@ -60,12 +66,19 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Network-first for navigation — fall back to cached index.html for offline
+  // Network-first for navigation — update cached index.html on success, fall back offline
   if (request.mode === "navigate") {
     event.respondWith(
-      fetch(request).catch(() =>
-        caches.match(OFFLINE_URL).then((r) => r ?? Response.error())
-      )
+      fetch(request)
+        .then((response) => {
+          if (response.ok) {
+            caches.open(STATIC_CACHE).then((cache) => cache.put(OFFLINE_URL, response.clone()));
+          }
+          return response;
+        })
+        .catch(() =>
+          caches.match(OFFLINE_URL).then((r) => r ?? Response.error())
+        )
     );
     return;
   }

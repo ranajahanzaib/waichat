@@ -43,10 +43,14 @@ export function usePWA() {
 
   const triggerInstall = useCallback(async () => {
     if (!installPrompt) return;
-    await installPrompt.prompt();
-    const { outcome } = await installPrompt.userChoice;
-    if (outcome === "accepted" || outcome === "dismissed") {
-      setInstallPrompt(null);
+    try {
+      await installPrompt.prompt();
+      const { outcome } = await installPrompt.userChoice;
+      if (outcome === "accepted" || outcome === "dismissed") {
+        setInstallPrompt(null);
+      }
+    } catch (err) {
+      console.error("Failed to prompt PWA installation:", err);
     }
   }, [installPrompt]);
 
