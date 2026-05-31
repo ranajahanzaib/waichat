@@ -58,7 +58,7 @@ function readSystemPromptsFromStorage(): SystemPrompt[] {
 
 export default function App() {
   const toast = useToast();
-  const { canInstall, triggerInstall, dismissInstall, isOffline } = usePWA();
+  const { canInstall, triggerInstall, dismissInstall, isOffline, wcoActive } = usePWA();
   const [theme, setTheme] = useState<ThemeMode>(() => {
     if (typeof window !== "undefined") {
       const stored = localStorage.getItem(THEME_KEY);
@@ -998,7 +998,7 @@ export default function App() {
             </div>
           )}
           {/* TOPBAR */}
-          <header className="flex items-center justify-between px-5 py-4 border-b-[0.5px] border-black/5 dark:border-white/10 shrink-0 transition-colors duration-300">
+          <header className={`flex items-center justify-between px-5 py-4 border-b-[0.5px] border-black/5 dark:border-white/10 shrink-0 transition-colors duration-300${wcoActive ? " wco" : ""}`}>
             <div className="flex items-center gap-3">
               {!sidebarOpen && (
                 <button

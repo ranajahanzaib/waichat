@@ -5,9 +5,13 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const wco = () => (navigator as any).windowControlsOverlay ?? null;
+
 export function usePWA() {
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
+  const [wcoActive, setWcoActive] = useState<boolean>(() => !!wco()?.visible);
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -16,6 +20,14 @@ export function usePWA() {
     };
     window.addEventListener("beforeinstallprompt", handler);
     return () => window.removeEventListener("beforeinstallprompt", handler);
+  }, []);
+
+  useEffect(() => {
+    const overlay = wco();
+    if (!overlay) return;
+    const handler = () => setWcoActive(!!overlay.visible);
+    overlay.addEventListener("geometrychange", handler);
+    return () => overlay.removeEventListener("geometrychange", handler);
   }, []);
 
   useEffect(() => {
@@ -42,5 +54,5 @@ export function usePWA() {
     setInstallPrompt(null);
   }, []);
 
-  return { canInstall: !!installPrompt, triggerInstall, dismissInstall, isOffline };
+  return { canInstall: !!installPrompt, triggerInstall, dismissInstall, isOffline, wcoActive };
 }

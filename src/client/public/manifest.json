@@ -4,6 +4,7 @@
   "description": "Your own AI chat app, deployed in one click on Cloudflare's free tier.",
   "start_url": "/",
   "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone"],
   "orientation": "portrait",
   "theme_color": "#0a84ff",
   "background_color": "#000000",
