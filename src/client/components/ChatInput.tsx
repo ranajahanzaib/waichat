@@ -115,7 +115,7 @@ export default function ChatInput({
               models={models}
               value={modelValue}
               onChange={onModelChange}
-              disabled={isGenerating}
+              disabled={disabled || isGenerating}
               className="max-w-[200px]"
             />
 
