@@ -721,7 +721,7 @@ export default function App() {
 
   const handleChatExport = useCallback(
     (format: "markdown" | "pdf") => {
-      if (!activeConversation) return;
+      if (!activeConversation || activeBranch.length === 0) return;
       setExportDropdownOpen(false);
       if (format === "markdown") {
         exportAsMarkdown(activeConversation, activeBranch);
@@ -1098,7 +1098,7 @@ export default function App() {
               </div>
 
               <div className="flex items-center gap-1.5">
-                {activeConversation && (
+                {activeConversation && activeBranch.length > 0 && (
                   <div className="relative">
                     <button
                       onClick={() => setExportDropdownOpen((o) => !o)}

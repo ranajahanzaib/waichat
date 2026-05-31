@@ -40,7 +40,7 @@ export function exportAsMarkdown(conversation: Conversation, messages: Message[]
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  setTimeout(() => URL.revokeObjectURL(url), 100);
 }
 
 export function exportAsPdf(conversation: Conversation, messages: Message[]): void {
@@ -61,7 +61,7 @@ export function exportAsPdf(conversation: Conversation, messages: Message[]): vo
           return `<pre><code>${escapeHtml(inner)}</code></pre>`;
         }
         if (!part) return "";
-        return `<p>${escapeHtml(part).replace(/\n/g, "<br>")}</p>`;
+        return `<p>${escapeHtml(part).replace(/\r?\n/g, "<br>")}</p>`;
       })
       .join("");
   }
