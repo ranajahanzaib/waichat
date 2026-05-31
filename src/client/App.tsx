@@ -1,8 +1,7 @@
-import { Download, HatGlasses, SquarePen } from "lucide-react";
+import { Download, HatGlasses, MoreHorizontal, SquarePen } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import ChatInput from "./components/ChatInput";
 import MessageList from "./components/MessageList";
-import ModelPicker from "./components/ModelPicker";
 import SettingsModal from "./components/SettingsModal";
 import Sidebar from "./components/Sidebar";
 import { ToastContainer } from "./components/Toast";
@@ -123,6 +122,7 @@ export default function App() {
   const pendingSelectionRef = useRef<string | null>(null);
   const [storageDropdownOpen, setStorageDropdownOpen] = useState(false);
   const [exportDropdownOpen, setExportDropdownOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const isTemporaryChat = storageMode === "temporary";
 
@@ -985,34 +985,6 @@ export default function App() {
                   </svg>
                 </button>
               )}
-
-              <div
-                className={`flex items-center gap-2 border-[0.5px] border-black/5 dark:border-white/10 rounded-full pl-3 pr-2 py-1.5 transition-all ${
-                  isTemporaryChat
-                    ? "bg-slate-500/10 hover:bg-slate-500/20 dark:bg-slate-500/15 dark:hover:bg-slate-500/25"
-                    : storageMode === "cloud"
-                      ? "bg-brand-cloud/10 hover:bg-brand-cloud/20 dark:bg-brand-cloud/15 dark:hover:bg-brand-cloud/25"
-                      : "bg-brand-local/10 hover:bg-brand-local/20 dark:bg-brand-local/15 dark:hover:bg-brand-local/25"
-                }`}
-              >
-                <div
-                  className={`w-2 h-2 rounded-full ${
-                    isTemporaryChat
-                      ? "bg-slate-500 shadow-sm shadow-slate-500/50"
-                      : storageMode === "cloud"
-                        ? "bg-brand-cloud"
-                        : "bg-brand-local"
-                  }`}
-                ></div>
-                <div className="flex-1 min-w-0">
-                  <ModelPicker
-                    models={models}
-                    value={activeConversation?.model ?? defaultModel}
-                    onChange={handleModelChange}
-                    disabled={isStreaming}
-                  />
-                </div>
-              </div>
             </div>
 
             <div className="flex items-center gap-3">
@@ -1097,7 +1069,8 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-1.5">
+              {/* Desktop: individual action buttons */}
+              <div className="hidden md:flex items-center gap-1.5">
                 {activeConversation && activeBranch.length > 0 && (
                   <div className="relative">
                     <button
@@ -1146,6 +1119,70 @@ export default function App() {
                 >
                   <SquarePen size={18} strokeWidth={2} />
                 </button>
+              </div>
+
+              {/* Mobile: 3-dot menu for Export, Temporary Chat, New Chat */}
+              <div className="relative md:hidden">
+                <button
+                  onClick={() => setMobileMenuOpen((o) => !o)}
+                  className="w-8 h-8 rounded-md flex items-center justify-center text-gray-500 hover:text-gray-900 hover:bg-black/5 dark:text-white/65 dark:hover:text-white/95 dark:hover:bg-white/5 transition-colors focus:outline-none"
+                  aria-label="More options"
+                  aria-expanded={mobileMenuOpen}
+                >
+                  <MoreHorizontal size={18} strokeWidth={2} />
+                </button>
+                {mobileMenuOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setMobileMenuOpen(false)} />
+                    <div className="absolute right-0 top-full mt-1 w-48 p-1.5 rounded-2xl bg-white/95 dark:bg-[#1c1c1e]/95 shadow-xl border border-black/5 dark:border-white/10 z-50 overflow-hidden backdrop-blur-xl">
+                      {activeConversation && activeBranch.length > 0 && (
+                        <>
+                          <button
+                            onClick={() => {
+                              handleChatExport("markdown");
+                              setMobileMenuOpen(false);
+                            }}
+                            className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left text-[13px] text-gray-700 dark:text-white/80 hover:bg-black/5 dark:hover:bg-white/5 rounded-xl transition-colors"
+                          >
+                            <Download size={15} strokeWidth={2} />
+                            Export as .md
+                          </button>
+                          <button
+                            onClick={() => {
+                              handleChatExport("pdf");
+                              setMobileMenuOpen(false);
+                            }}
+                            className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left text-[13px] text-gray-700 dark:text-white/80 hover:bg-black/5 dark:hover:bg-white/5 rounded-xl transition-colors"
+                          >
+                            <Download size={15} strokeWidth={2} />
+                            Export as PDF
+                          </button>
+                          <div className="h-px bg-black/5 dark:bg-white/10 my-1" />
+                        </>
+                      )}
+                      <button
+                        onClick={() => {
+                          handleStorageToggle("temporary");
+                          setMobileMenuOpen(false);
+                        }}
+                        className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left text-[13px] text-gray-700 dark:text-white/80 hover:bg-black/5 dark:hover:bg-white/5 rounded-xl transition-colors"
+                      >
+                        <HatGlasses size={15} strokeWidth={2} />
+                        Temporary Chat
+                      </button>
+                      <button
+                        onClick={() => {
+                          handleNew(storageMode);
+                          setMobileMenuOpen(false);
+                        }}
+                        className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left text-[13px] text-gray-700 dark:text-white/80 hover:bg-black/5 dark:hover:bg-white/5 rounded-xl transition-colors"
+                      >
+                        <SquarePen size={15} strokeWidth={2} />
+                        New Chat
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </header>
@@ -1210,6 +1247,9 @@ export default function App() {
             initialValue={pendingPrompt}
             onClearInitialValue={() => setPendingPrompt("")}
             onAbort={stopGeneration}
+            models={models}
+            modelValue={activeConversation?.model ?? defaultModel}
+            onModelChange={handleModelChange}
           />
         </main>
 
