@@ -1134,10 +1134,11 @@ export default function App() {
                 {mobileMenuOpen && (
                   <>
                     <div className="fixed inset-0 z-40" onClick={() => setMobileMenuOpen(false)} />
-                    <div className="absolute right-0 top-full mt-1 w-48 p-1.5 rounded-2xl bg-white/95 dark:bg-[#1c1c1e]/95 shadow-xl border border-black/5 dark:border-white/10 z-50 overflow-hidden backdrop-blur-xl">
+                    <div role="menu" className="absolute right-0 top-full mt-1 w-48 p-1.5 rounded-2xl bg-white/95 dark:bg-[#1c1c1e]/95 shadow-xl border border-black/5 dark:border-white/10 z-50 overflow-hidden backdrop-blur-xl">
                       {activeConversation && activeBranch.length > 0 && (
                         <>
                           <button
+                            role="menuitem"
                             onClick={() => {
                               handleChatExport("markdown");
                               setMobileMenuOpen(false);
@@ -1148,6 +1149,7 @@ export default function App() {
                             Export as .md
                           </button>
                           <button
+                            role="menuitem"
                             onClick={() => {
                               handleChatExport("pdf");
                               setMobileMenuOpen(false);
@@ -1161,6 +1163,7 @@ export default function App() {
                         </>
                       )}
                       <button
+                        role="menuitem"
                         onClick={() => {
                           handleStorageToggle("temporary");
                           setMobileMenuOpen(false);
@@ -1171,6 +1174,7 @@ export default function App() {
                         Temporary Chat
                       </button>
                       <button
+                        role="menuitem"
                         onClick={() => {
                           handleNew(storageMode);
                           setMobileMenuOpen(false);
