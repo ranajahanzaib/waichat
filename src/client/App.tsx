@@ -1,4 +1,4 @@
-import { Download, HatGlasses, MoreHorizontal, SquarePen } from "lucide-react";
+import { Download, HatGlasses, MoreVertical, SquarePen } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import ChatInput from "./components/ChatInput";
 import MessageList from "./components/MessageList";
@@ -1129,7 +1129,7 @@ export default function App() {
                   aria-label="More options"
                   aria-expanded={mobileMenuOpen}
                 >
-                  <MoreHorizontal size={18} strokeWidth={2} />
+                  <MoreVertical size={18} strokeWidth={2} />
                 </button>
                 {mobileMenuOpen && (
                   <>
