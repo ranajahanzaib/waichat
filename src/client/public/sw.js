@@ -5,8 +5,9 @@ const OFFLINE_URL = "/";
 const STATIC_EXTENSIONS = [".js", ".css", ".woff", ".woff2", ".ttf", ".otf", ".ico", ".png", ".webp", ".svg", ".webmanifest", ".json"];
 
 function isStaticAsset(url) {
-  const path = new URL(url).pathname;
-  return STATIC_EXTENSIONS.some((ext) => path.endsWith(ext));
+  const parsed = new URL(url);
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
+  return STATIC_EXTENSIONS.some((ext) => parsed.pathname.endsWith(ext));
 }
 
 function isApiRequest(url) {

@@ -1104,21 +1104,23 @@ export default function App() {
               {/* Desktop: individual action buttons */}
               <div className="hidden md:flex items-center gap-1.5">
                 {canInstall && (
-                  <button
-                    onClick={triggerInstall}
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-brand-cloud hover:bg-brand-cloud/10 dark:hover:bg-brand-cloud/20 transition-colors focus:outline-none"
-                    title="Install WaiChat"
-                  >
-                    <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
-                      <path d="M8 1v9M4 6l4 4 4-4M2 13h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-                    </svg>
-                    Install App
+                  <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-brand-cloud hover:bg-brand-cloud/10 dark:hover:bg-brand-cloud/20 transition-colors">
                     <button
-                      onClick={(e) => { e.stopPropagation(); dismissInstall(); }}
-                      className="ml-0.5 opacity-50 hover:opacity-100"
+                      onClick={triggerInstall}
+                      className="flex items-center gap-1.5 focus:outline-none"
+                      title="Install WaiChat"
+                    >
+                      <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
+                        <path d="M8 1v9M4 6l4 4 4-4M2 13h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+                      </svg>
+                      Install App
+                    </button>
+                    <button
+                      onClick={dismissInstall}
+                      className="ml-0.5 opacity-50 hover:opacity-100 focus:outline-none"
                       aria-label="Dismiss"
                     >×</button>
-                  </button>
+                  </div>
                 )}
                 {activeConversation && activeBranch.length > 0 && (
                   <div className="relative">
