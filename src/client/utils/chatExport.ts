@@ -3,15 +3,15 @@ import type { Conversation, Message } from "../storage";
 function slugify(title: string): string {
   const slug = title
     .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, "")
     .trim()
+    .replace(/[\\/:*?"<>|]/g, "")
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-");
   return slug || "waichat-export";
 }
 
 function formatDate(ts: number): string {
-  return new Date(ts).toLocaleDateString("en-US", {
+  return new Date(ts).toLocaleDateString(undefined, {
     year: "numeric",
     month: "long",
     day: "numeric",
@@ -76,21 +76,35 @@ export function exportAsPdf(conversation: Conversation, messages: Message[]): vo
     })
     .join("\n");
 
-  const printStyle = `
-    <style>
-      @media print {
-        body > *:not(#waichat-print-export) { display: none !important; }
-        #waichat-print-export { display: block !important; }
+  const existing = document.getElementById("waichat-print-export");
+  if (existing) existing.remove();
+
+  const styleId = "waichat-print-style";
+  const existingStyle = document.getElementById(styleId);
+  if (existingStyle) existingStyle.remove();
+
+  const styleEl = document.createElement("style");
+  styleEl.id = styleId;
+  styleEl.textContent = `
+    #waichat-print-export {
+      display: none;
+    }
+    @media print {
+      html, body {
+        background: white !important;
+        color: #111 !important;
+      }
+      body > *:not(#waichat-print-export) {
+        display: none !important;
       }
       #waichat-print-export {
+        display: block !important;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         font-size: 13px;
         line-height: 1.6;
-        color: #111;
         max-width: 720px;
         margin: 0 auto;
         padding: 40px 24px;
-        display: none;
       }
       #waichat-print-export h1 {
         font-size: 22px;
@@ -110,6 +124,7 @@ export function exportAsPdf(conversation: Conversation, messages: Message[]): vo
       }
       #waichat-print-export .message {
         margin-bottom: 20px;
+        break-inside: avoid;
       }
       #waichat-print-export .role {
         font-weight: 700;
@@ -129,33 +144,18 @@ export function exportAsPdf(conversation: Conversation, messages: Message[]): vo
         padding: 12px;
         overflow-x: auto;
         margin: 8px 0;
+        break-inside: avoid;
       }
       #waichat-print-export code {
         font-family: "SF Mono", "Fira Code", "Fira Mono", monospace;
         font-size: 12px;
       }
-    </style>
-  `;
-
-  const existing = document.getElementById("waichat-print-export");
-  if (existing) existing.remove();
-
-  const styleId = "waichat-print-style";
-  const existingStyle = document.getElementById(styleId);
-  if (existingStyle) existingStyle.remove();
-
-  const styleEl = document.createElement("style");
-  styleEl.id = styleId;
-  styleEl.setAttribute("media", "print");
-  styleEl.textContent = `
-    body > *:not(#waichat-print-export) { display: none !important; }
-    #waichat-print-export { display: block !important; }
+    }
   `;
 
   const div = document.createElement("div");
   div.id = "waichat-print-export";
   div.innerHTML = `
-    ${printStyle}
     <h1>${escapeHtml(title)}</h1>
     <div class="export-meta">Exported from WaiChat on ${date}</div>
     <hr>

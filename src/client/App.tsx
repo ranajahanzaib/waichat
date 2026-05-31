@@ -1114,7 +1114,7 @@ export default function App() {
                           className="fixed inset-0 z-40"
                           onClick={() => setExportDropdownOpen(false)}
                         />
-                        <div className="absolute right-0 mt-1 w-40 rounded-xl bg-white dark:bg-[#1c1c1e] shadow-xl border border-black/5 dark:border-white/10 py-1.5 z-50 overflow-hidden backdrop-blur-xl">
+                        <div className="absolute right-0 mt-1 w-40 rounded-xl bg-white/95 dark:bg-[#1c1c1e]/95 shadow-xl border border-black/5 dark:border-white/10 py-1.5 z-50 overflow-hidden backdrop-blur-xl">
                           <button
                             onClick={() => handleChatExport("markdown")}
                             className="w-full flex items-center gap-2 px-3 py-2 text-left text-[13px] text-gray-700 dark:text-white/80 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
