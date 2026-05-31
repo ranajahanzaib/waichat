@@ -5,22 +5,36 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 }
 
+const INSTALL_DISMISSED_KEY = "waichat:install-dismissed";
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const wco = () => (navigator as any).windowControlsOverlay ?? null;
+const wco = () => {
+  if (typeof navigator !== "undefined" && "windowControlsOverlay" in navigator) {
+    return (navigator as any).windowControlsOverlay;
+  }
+  return null;
+};
 
 export function usePWA() {
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
-  const [isOffline, setIsOffline] = useState(!navigator.onLine);
+  const [isOffline, setIsOffline] = useState(() =>
+    typeof navigator !== "undefined" ? !navigator.onLine : false
+  );
   const [wcoActive, setWcoActive] = useState<boolean>(() => !!wco()?.visible);
+  const [isDismissed, setIsDismissed] = useState(() =>
+    typeof window !== "undefined"
+      ? localStorage.getItem(INSTALL_DISMISSED_KEY) === "true"
+      : false
+  );
 
   useEffect(() => {
     const handler = (e: Event) => {
       e.preventDefault();
-      setInstallPrompt(e as BeforeInstallPromptEvent);
+      if (!isDismissed) setInstallPrompt(e as BeforeInstallPromptEvent);
     };
     window.addEventListener("beforeinstallprompt", handler);
     return () => window.removeEventListener("beforeinstallprompt", handler);
-  }, []);
+  }, [isDismissed]);
 
   useEffect(() => {
     const overlay = wco();
@@ -56,6 +70,8 @@ export function usePWA() {
 
   const dismissInstall = useCallback(() => {
     setInstallPrompt(null);
+    setIsDismissed(true);
+    localStorage.setItem(INSTALL_DISMISSED_KEY, "true");
   }, []);
 
   return { canInstall: !!installPrompt, triggerInstall, dismissInstall, isOffline, wcoActive };

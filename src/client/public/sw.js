@@ -52,27 +52,28 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Cache-first for static assets
+  // Cache-first for static assets; use status === 200 to avoid caching partial responses
   if (isStaticAsset(url)) {
     event.respondWith(
       caches.open(STATIC_CACHE).then(async (cache) => {
         const cached = await cache.match(request);
         if (cached) return cached;
         const response = await fetch(request);
-        if (response.ok) cache.put(request, response.clone());
+        if (response.status === 200) await cache.put(request, response.clone());
         return response;
       })
     );
     return;
   }
 
-  // Network-first for navigation — update cached index.html on success, fall back offline
+  // Network-first for navigation — await cache update so SW isn't terminated early
   if (request.mode === "navigate") {
     event.respondWith(
       fetch(request)
-        .then((response) => {
-          if (response.ok) {
-            caches.open(STATIC_CACHE).then((cache) => cache.put(OFFLINE_URL, response.clone()));
+        .then(async (response) => {
+          if (response.status === 200) {
+            const cache = await caches.open(STATIC_CACHE);
+            await cache.put(OFFLINE_URL, response.clone());
           }
           return response;
         })
