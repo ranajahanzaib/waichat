@@ -1,5 +1,7 @@
 import { useEffect, useRef } from "react";
+import type { Model } from "../hooks/useModels";
 import type { StorageMode } from "../storage";
+import ModelPicker from "./ModelPicker";
 
 interface ChatInputProps {
   onSend: (content: string) => void;
@@ -12,6 +14,9 @@ interface ChatInputProps {
   initialValue?: string;
   onClearInitialValue?: () => void;
   onAbort?: () => void;
+  models: Model[];
+  modelValue: string;
+  onModelChange: (model: string) => void;
 }
 
 export default function ChatInput({
@@ -25,6 +30,9 @@ export default function ChatInput({
   initialValue,
   onClearInitialValue,
   onAbort,
+  models,
+  modelValue,
+  onModelChange,
 }: ChatInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -45,13 +53,12 @@ export default function ChatInput({
   }, [value]);
 
   const handleSend = (e?: React.FormEvent) => {
-    e?.preventDefault(); // Prevent page reload if triggered via form submission
+    e?.preventDefault();
     const trimmed = value.trim();
     if (!trimmed || disabled || isGenerating) return;
     onSend(trimmed);
     onChange("");
 
-    // Reset height after sending
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
     }
@@ -100,43 +107,35 @@ export default function ChatInput({
             }
             disabled={disabled || (isGenerating && !isStreamingHere)}
             rows={1}
-            className="w-full bg-transparent border-none text-gray-900 dark:text-white/95 text-base outline-none resize-none leading-relaxed min-h-[24px] max-h-[200px] pr-12 placeholder:text-gray-400 dark:placeholder:text-white/40 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-black/10 dark:[&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full"
+            className="w-full bg-transparent border-none text-gray-900 dark:text-white/95 text-base outline-none resize-none leading-relaxed min-h-[24px] max-h-[200px] placeholder:text-gray-400 dark:placeholder:text-white/40 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-black/10 dark:[&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full"
           />
 
-          <button
-            type="submit"
-            disabled={disabled || isGenerating || !value.trim()}
-            className="absolute right-3 top-2.5 w-8 h-8 bg-black/5 dark:bg-white/10 border-[0.5px] border-black/10 dark:border-white/10 rounded-full flex items-center justify-center text-gray-500 dark:text-white/80 hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black hover:scale-105 disabled:opacity-40 disabled:hover:bg-black/5 disabled:hover:text-gray-500 dark:disabled:hover:bg-white/10 dark:disabled:hover:text-white/80 disabled:hover:scale-100 transition-all duration-200 cursor-pointer"
-            aria-label="Send message"
-          >
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              className="w-4 h-4 stroke-[2.5]"
-            >
-              <line x1="22" y1="2" x2="11" y2="13"></line>
-              <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-            </svg>
-          </button>
+          <div className="flex items-center justify-between mt-2 pt-2 border-t-[0.5px] border-black/5 dark:border-white/5">
+            <ModelPicker
+              models={models}
+              value={modelValue}
+              onChange={onModelChange}
+              disabled={disabled || isGenerating}
+              className="max-w-[200px]"
+            />
 
-          {/*<div className="flex justify-between items-center mt-3 border-t-[0.5px] border-black/5 dark:border-white/5 pt-2">
             <button
-              type="button"
-              className="flex items-center gap-2 bg-transparent border-none text-gray-500 hover:text-gray-900 dark:text-white/50 dark:hover:text-white/95 text-[13px] md:text-sm font-medium cursor-pointer transition-colors focus:outline-none"
-              aria-label="Attach file"
+              type="submit"
+              disabled={disabled || isGenerating || !value.trim()}
+              className="w-8 h-8 bg-black/5 dark:bg-white/10 border-[0.5px] border-black/10 dark:border-white/10 rounded-full flex items-center justify-center text-gray-500 dark:text-white/80 hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black hover:scale-105 disabled:opacity-40 disabled:hover:bg-black/5 disabled:hover:text-gray-500 dark:disabled:hover:bg-white/10 dark:disabled:hover:text-white/80 disabled:hover:scale-100 transition-all duration-200 cursor-pointer shrink-0"
+              aria-label="Send message"
             >
               <svg
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
-                className="w-5 h-5 stroke-[1.5]"
+                className="w-4 h-4 stroke-[2.5]"
               >
-                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
+                <line x1="22" y1="2" x2="11" y2="13"></line>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
               </svg>
-              Files
             </button>
-          </div>*/}
+          </div>
         </form>
 
         <div className="text-center text-xs text-gray-400 dark:text-white/40 mt-3 hidden md:block tracking-wide">
