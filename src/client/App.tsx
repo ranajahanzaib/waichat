@@ -1,4 +1,4 @@
-import { HatGlasses, SquarePen } from "lucide-react";
+import { Download, HatGlasses, SquarePen } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import ChatInput from "./components/ChatInput";
 import MessageList from "./components/MessageList";
@@ -12,6 +12,7 @@ import { useToast } from "./hooks/useToast";
 import { useTransfer } from "./hooks/useTransfer";
 import type { Conversation, Message, StorageMode } from "./storage";
 import { createStorage } from "./storage";
+import { exportAsMarkdown, exportAsPdf } from "./utils/chatExport";
 import { exportWorkspace } from "./utils/exportUtils";
 import { parseImportFile } from "./utils/importUtils";
 
@@ -121,6 +122,7 @@ export default function App() {
 
   const pendingSelectionRef = useRef<string | null>(null);
   const [storageDropdownOpen, setStorageDropdownOpen] = useState(false);
+  const [exportDropdownOpen, setExportDropdownOpen] = useState(false);
 
   const isTemporaryChat = storageMode === "temporary";
 
@@ -131,8 +133,8 @@ export default function App() {
   const [defaultModel, setDefaultModel] = useState(
     () => localStorage.getItem(DEFAULT_MODEL_KEY) ?? DEFAULT_MODEL_ID,
   );
-  const [systemPrompts, setSystemPrompts] = useState<SystemPrompt[]>(
-    () => readSystemPromptsFromStorage(),
+  const [systemPrompts, setSystemPrompts] = useState<SystemPrompt[]>(() =>
+    readSystemPromptsFromStorage(),
   );
   const [selectedPromptId, setSelectedPromptId] = useState<string | null>(null);
   const [syncSettings, setSyncSettings] = useState(
@@ -319,7 +321,13 @@ export default function App() {
               const postRes = await fetch("/api/system-prompts", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ id: p.id, name: p.name, content: p.content, created_at: p.created_at, updated_at: p.updated_at }),
+                body: JSON.stringify({
+                  id: p.id,
+                  name: p.name,
+                  content: p.content,
+                  created_at: p.created_at,
+                  updated_at: p.updated_at,
+                }),
               });
               if (!postRes.ok) throw new Error(`Failed to sync prompt: ${p.name}`);
             } catch (err) {
@@ -331,7 +339,9 @@ export default function App() {
         // Abort before overwriting localStorage — any failed upload means the
         // cloud list is incomplete and would permanently delete local-only prompts
         if (hasUploadError) {
-          throw new Error("Some prompts failed to upload. Aborting sync to prevent local data loss.");
+          throw new Error(
+            "Some prompts failed to upload. Aborting sync to prevent local data loss.",
+          );
         }
         if (!active) return;
 
@@ -528,7 +538,12 @@ export default function App() {
     if (isStreaming) return;
     const currentModel = activeConversation?.model ?? defaultModel;
     if (!activeConversation) {
-      const convo = await newConversation(defaultModel, storageMode, selectedPromptId, effectiveSystemPrompt || null);
+      const convo = await newConversation(
+        defaultModel,
+        storageMode,
+        selectedPromptId,
+        effectiveSystemPrompt || null,
+      );
       await sendMessage(content, defaultModel, convo.id, storageMode, effectiveSystemPrompt);
     } else {
       await sendMessage(
@@ -632,7 +647,10 @@ export default function App() {
         if (!res.ok) throw new Error("Failed to update prompt");
       } catch (err) {
         // Local state is kept — background sync will retry on next load/sync enable
-        console.error("Failed to sync system prompt update to cloud (will retry on next sync):", err);
+        console.error(
+          "Failed to sync system prompt update to cloud (will retry on next sync):",
+          err,
+        );
       }
     }
   };
@@ -700,6 +718,19 @@ export default function App() {
       cancelMove();
     }
   };
+
+  const handleChatExport = useCallback(
+    (format: "markdown" | "pdf") => {
+      if (!activeConversation || activeBranch.length === 0) return;
+      setExportDropdownOpen(false);
+      if (format === "markdown") {
+        exportAsMarkdown(activeConversation, activeBranch);
+      } else {
+        exportAsPdf(activeConversation, activeBranch);
+      }
+    },
+    [activeConversation, activeBranch],
+  );
 
   const handleExportWorkspace = async (scope: "local" | "cloud" | "both") => {
     try {
@@ -835,14 +866,21 @@ export default function App() {
       }
 
       // Restore system prompt library — merge by updated_at so newer imported versions win
-      if (data.systemPrompts && Array.isArray(data.systemPrompts) && data.systemPrompts.length > 0) {
+      if (
+        data.systemPrompts &&
+        Array.isArray(data.systemPrompts) &&
+        data.systemPrompts.length > 0
+      ) {
         const existingMap = new Map(systemPrompts.map((p) => [p.id, p]));
         const mergedMap = new Map(systemPrompts.map((p) => [p.id, p]));
         const toSync: SystemPrompt[] = [];
 
         for (const p of data.systemPrompts as SystemPrompt[]) {
           const existing = existingMap.get(p.id);
-          if (!existing || (p.updated_at ?? p.created_at) > (existing.updated_at ?? existing.created_at)) {
+          if (
+            !existing ||
+            (p.updated_at ?? p.created_at) > (existing.updated_at ?? existing.created_at)
+          ) {
             mergedMap.set(p.id, p);
             toSync.push(p);
           }
@@ -1060,6 +1098,40 @@ export default function App() {
               </div>
 
               <div className="flex items-center gap-1.5">
+                {activeConversation && activeBranch.length > 0 && (
+                  <div className="relative">
+                    <button
+                      onClick={() => setExportDropdownOpen((o) => !o)}
+                      className="w-8 h-8 rounded-md flex items-center justify-center text-gray-500 hover:text-gray-900 hover:bg-black/5 dark:text-white/65 dark:hover:text-white/95 dark:hover:bg-white/5 transition-colors focus:outline-none"
+                      title="Export conversation"
+                      aria-expanded={exportDropdownOpen}
+                    >
+                      <Download size={18} strokeWidth={2} />
+                    </button>
+                    {exportDropdownOpen && (
+                      <>
+                        <div
+                          className="fixed inset-0 z-40"
+                          onClick={() => setExportDropdownOpen(false)}
+                        />
+                        <div className="absolute right-0 mt-1 w-40 rounded-xl bg-white/95 dark:bg-[#1c1c1e]/95 shadow-xl border border-black/5 dark:border-white/10 py-1.5 z-50 overflow-hidden backdrop-blur-xl">
+                          <button
+                            onClick={() => handleChatExport("markdown")}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-left text-[13px] text-gray-700 dark:text-white/80 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                          >
+                            Export as .md
+                          </button>
+                          <button
+                            onClick={() => handleChatExport("pdf")}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-left text-[13px] text-gray-700 dark:text-white/80 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                          >
+                            Export as PDF
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
                 <button
                   onClick={() => handleStorageToggle("temporary")}
                   className="w-8 h-8 rounded-md flex items-center justify-center text-gray-500 hover:text-slate-600 hover:bg-slate-50 dark:text-white/65 dark:hover:text-slate-400 dark:hover:bg-slate-500/10 transition-colors focus:outline-none"
