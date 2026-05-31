@@ -1,4 +1,5 @@
 {
+  "id": "/",
   "name": "WaiChat",
   "short_name": "WaiChat",
   "description": "Your own AI chat app, deployed in one click on Cloudflare's free tier.",
@@ -32,6 +33,12 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
+    }
+  ],
+  "protocol_handlers": [
+    {
+      "protocol": "web+waichat",
+      "url": "/?uri=%s"
     }
   ],
   "screenshots": [
