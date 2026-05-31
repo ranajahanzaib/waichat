@@ -1,4 +1,4 @@
-import { HatGlasses, SquarePen } from "lucide-react";
+import { Download, HatGlasses, SquarePen } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import ChatInput from "./components/ChatInput";
 import MessageList from "./components/MessageList";
@@ -122,6 +122,7 @@ export default function App() {
 
   const pendingSelectionRef = useRef<string | null>(null);
   const [storageDropdownOpen, setStorageDropdownOpen] = useState(false);
+  const [exportDropdownOpen, setExportDropdownOpen] = useState(false);
 
   const isTemporaryChat = storageMode === "temporary";
 
@@ -719,8 +720,9 @@ export default function App() {
   };
 
   const handleChatExport = useCallback(
-    (_id: string, format: "markdown" | "pdf") => {
+    (format: "markdown" | "pdf") => {
       if (!activeConversation) return;
+      setExportDropdownOpen(false);
       if (format === "markdown") {
         exportAsMarkdown(activeConversation, activeBranch);
       } else {
@@ -950,8 +952,6 @@ export default function App() {
           onDelete={deleteConversation}
           onMove={handleMoveConversation}
           onRename={renameConversation}
-          onExport={handleChatExport}
-          activeConversationId={activeConversation?.id ?? null}
           onSearch={(q, signal) => createStorage(storageMode).searchConversations(q, signal)}
           onSettingsOpen={() => setSettingsOpen(true)}
           onModeChange={handleStorageToggle}
@@ -1098,6 +1098,40 @@ export default function App() {
               </div>
 
               <div className="flex items-center gap-1.5">
+                {activeConversation && (
+                  <div className="relative">
+                    <button
+                      onClick={() => setExportDropdownOpen((o) => !o)}
+                      className="w-8 h-8 rounded-md flex items-center justify-center text-gray-500 hover:text-gray-900 hover:bg-black/5 dark:text-white/65 dark:hover:text-white/95 dark:hover:bg-white/5 transition-colors focus:outline-none"
+                      title="Export conversation"
+                      aria-expanded={exportDropdownOpen}
+                    >
+                      <Download size={18} strokeWidth={2} />
+                    </button>
+                    {exportDropdownOpen && (
+                      <>
+                        <div
+                          className="fixed inset-0 z-40"
+                          onClick={() => setExportDropdownOpen(false)}
+                        />
+                        <div className="absolute right-0 mt-1 w-40 rounded-xl bg-white dark:bg-[#1c1c1e] shadow-xl border border-black/5 dark:border-white/10 py-1.5 z-50 overflow-hidden backdrop-blur-xl">
+                          <button
+                            onClick={() => handleChatExport("markdown")}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-left text-[13px] text-gray-700 dark:text-white/80 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                          >
+                            Export as .md
+                          </button>
+                          <button
+                            onClick={() => handleChatExport("pdf")}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-left text-[13px] text-gray-700 dark:text-white/80 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                          >
+                            Export as PDF
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
                 <button
                   onClick={() => handleStorageToggle("temporary")}
                   className="w-8 h-8 rounded-md flex items-center justify-center text-gray-500 hover:text-slate-600 hover:bg-slate-50 dark:text-white/65 dark:hover:text-slate-400 dark:hover:bg-slate-500/10 transition-colors focus:outline-none"
