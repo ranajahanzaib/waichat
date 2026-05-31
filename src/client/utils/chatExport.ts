@@ -27,7 +27,7 @@ export function exportAsMarkdown(conversation: Conversation, messages: Message[]
   for (const msg of messages) {
     const role = msg.role === "user" ? "**User**" : "**Assistant**";
     lines.push(role);
-    lines.push(msg.content);
+    lines.push(msg.content || "");
     lines.push("");
   }
 
@@ -52,11 +52,12 @@ export function exportAsPdf(conversation: Conversation, messages: Message[]): vo
 
   // Convert content: fenced code blocks → <pre><code>, rest -> escaped paragraphs
   function renderContent(raw: string): string {
+    if (!raw) return "";
     const parts = raw.split(/(```[\s\S]*?```)/g);
     return parts
       .map((part) => {
         if (part.startsWith("```")) {
-          const inner = part.replace(/^```[^\n]*\n?/, "").replace(/```$/, "");
+          const inner = part.replace(/^```[a-zA-Z0-9+#_-]*\n?/, "").replace(/```$/, "");
           return `<pre><code>${escapeHtml(inner)}</code></pre>`;
         }
         if (!part) return "";

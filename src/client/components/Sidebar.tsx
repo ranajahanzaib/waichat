@@ -84,7 +84,7 @@ export default function Sidebar({
   const [isRenaming, setIsRenaming] = useState(false);
   const [isMobileMenu, setIsMobileMenu] = useState(false);
   const [menuPos, setMenuPos] = useState<{ top?: number; bottom?: number; left?: number }>({});
-  const MENU_HEIGHT_ESTIMATE = 200;
+  const MENU_HEIGHT_ESTIMATE = 160;
   const menuRef = useRef<HTMLDivElement>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
