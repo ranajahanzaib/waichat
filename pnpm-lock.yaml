@@ -12,8 +12,8 @@ importers:
         specifier: ^0.8.2
         version: 0.8.2
       hono:
-        specifier: ^4.12.27
-        version: 4.12.27
+        specifier: ^4.12.34
+        version: 4.12.34
       lucide-react:
         specifier: ^1.16.0
         version: 1.16.0(react@19.2.5)
@@ -852,8 +852,8 @@ packages:
   highlightjs-vue@1.0.0:
     resolution: {integrity: sha512-PDEfEF102G23vHmPhLyPboFCD+BkMGu+GuJe2d9/eH4FsCwvgBpnc9n0pGE+ffKdph38s6foEZiEjdgHdzp+IA==}
 
-  hono@4.12.27:
-    resolution: {integrity: sha512-1yrb/+w6HWQJrUCLkJ2IF5jNIPvvFkblV5RNOYl6bV+OA6p9GLcMpHFFGTosSvHvcAUibuUukRqhlYI4z32C7Q==}
+  hono@4.12.34:
+    resolution: {integrity: sha512-GqXJqY/xJkJmuloTrnV1ZEXG3fqte+VjkUqoRNZXcrUidiUOP4fMSIHHY4tsqZBK++kVyWmt/AAfSUuy57/eSA==}
     engines: {node: '>=16.9.0'}
 
   html-url-attributes@3.0.1:
@@ -1933,7 +1933,7 @@ snapshots:
 
   highlightjs-vue@1.0.0: {}
 
-  hono@4.12.27: {}
+  hono@4.12.34: {}
 
   html-url-attributes@3.0.1: {}
 
