@@ -1,5 +1,6 @@
 import { Download, HatGlasses, MoreVertical, SquarePen } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { usePWA } from "./hooks/usePWA";
 import ChatInput from "./components/ChatInput";
 import MessageList from "./components/MessageList";
 import SettingsModal from "./components/SettingsModal";
@@ -57,6 +58,7 @@ function readSystemPromptsFromStorage(): SystemPrompt[] {
 
 export default function App() {
   const toast = useToast();
+  const { canInstall, triggerInstall, dismissInstall, isOffline, wcoActive } = usePWA();
   const [theme, setTheme] = useState<ThemeMode>(() => {
     if (typeof window !== "undefined") {
       const stored = localStorage.getItem(THEME_KEY);
@@ -988,8 +990,15 @@ export default function App() {
         />
 
         <main className="flex flex-col flex-1 min-w-0 h-full relative">
+          {/* Offline banner */}
+          {isOffline && (
+            <div className="flex items-center justify-center gap-2 bg-amber-500/10 border-b border-amber-500/20 px-4 py-2 text-amber-600 dark:text-amber-400 text-xs font-medium shrink-0">
+              <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+              You&apos;re offline — messages cannot be sent
+            </div>
+          )}
           {/* TOPBAR */}
-          <header className="flex items-center justify-between px-5 py-4 border-b-[0.5px] border-black/5 dark:border-white/10 shrink-0 transition-colors duration-300">
+          <header className={`flex items-center justify-between px-5 py-4 border-b-[0.5px] border-black/5 dark:border-white/10 shrink-0 transition-colors duration-300${wcoActive ? " wco" : ""}`}>
             <div className="flex items-center gap-3">
               {!sidebarOpen && (
                 <button
@@ -1094,6 +1103,25 @@ export default function App() {
 
               {/* Desktop: individual action buttons */}
               <div className="hidden md:flex items-center gap-1.5">
+                {canInstall && (
+                  <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-brand-cloud hover:bg-brand-cloud/10 dark:hover:bg-brand-cloud/20 transition-colors">
+                    <button
+                      onClick={triggerInstall}
+                      className="flex items-center gap-1.5 focus:outline-none"
+                      title="Install WaiChat"
+                    >
+                      <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
+                        <path d="M8 1v9M4 6l4 4 4-4M2 13h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+                      </svg>
+                      Install App
+                    </button>
+                    <button
+                      onClick={dismissInstall}
+                      className="ml-0.5 opacity-50 hover:opacity-100 focus:outline-none"
+                      aria-label="Dismiss"
+                    >×</button>
+                  </div>
+                )}
                 {activeConversation && activeBranch.length > 0 && (
                   <div className="relative">
                     <button

@@ -29,3 +29,23 @@
 .interactive-card {
   @apply cursor-pointer transition-all active:scale-[0.98];
 }
+
+/* Window Controls Overlay — title bar becomes a draggable app region */
+header.wco {
+  /* Push content into the free title-bar area, leaving room for OS window controls */
+  padding-left: max(env(titlebar-area-x, 20px), 12px);
+  padding-right: max(calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw)), 12px);
+  height: env(titlebar-area-height, auto);
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+
+/* Interactive children must opt out of the drag region */
+header.wco button,
+header.wco [role="button"],
+header.wco a,
+header.wco .storage-dropdown-container,
+header.wco .mobile-menu-container {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}

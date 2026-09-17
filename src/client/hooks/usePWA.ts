@@ -1,0 +1,78 @@
+import { useCallback, useEffect, useState } from "react";
+
+interface BeforeInstallPromptEvent extends Event {
+  prompt(): Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+}
+
+const INSTALL_DISMISSED_KEY = "waichat:install-dismissed";
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const wco = () => {
+  if (typeof navigator !== "undefined" && "windowControlsOverlay" in navigator) {
+    return (navigator as any).windowControlsOverlay;
+  }
+  return null;
+};
+
+export function usePWA() {
+  const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [isOffline, setIsOffline] = useState(() =>
+    typeof navigator !== "undefined" ? !navigator.onLine : false
+  );
+  const [wcoActive, setWcoActive] = useState<boolean>(() => !!wco()?.visible);
+  const [isDismissed, setIsDismissed] = useState(() =>
+    typeof window !== "undefined"
+      ? localStorage.getItem(INSTALL_DISMISSED_KEY) === "true"
+      : false
+  );
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      e.preventDefault();
+      if (!isDismissed) setInstallPrompt(e as BeforeInstallPromptEvent);
+    };
+    window.addEventListener("beforeinstallprompt", handler);
+    return () => window.removeEventListener("beforeinstallprompt", handler);
+  }, [isDismissed]);
+
+  useEffect(() => {
+    const overlay = wco();
+    if (!overlay) return;
+    const handler = () => setWcoActive(!!overlay.visible);
+    overlay.addEventListener("geometrychange", handler);
+    return () => overlay.removeEventListener("geometrychange", handler);
+  }, []);
+
+  useEffect(() => {
+    const setOnline = () => setIsOffline(false);
+    const setOffline = () => setIsOffline(true);
+    window.addEventListener("online", setOnline);
+    window.addEventListener("offline", setOffline);
+    return () => {
+      window.removeEventListener("online", setOnline);
+      window.removeEventListener("offline", setOffline);
+    };
+  }, []);
+
+  const triggerInstall = useCallback(async () => {
+    if (!installPrompt) return;
+    try {
+      await installPrompt.prompt();
+      const { outcome } = await installPrompt.userChoice;
+      if (outcome === "accepted" || outcome === "dismissed") {
+        setInstallPrompt(null);
+      }
+    } catch (err) {
+      console.error("Failed to prompt PWA installation:", err);
+    }
+  }, [installPrompt]);
+
+  const dismissInstall = useCallback(() => {
+    setInstallPrompt(null);
+    setIsDismissed(true);
+    localStorage.setItem(INSTALL_DISMISSED_KEY, "true");
+  }, []);
+
+  return { canInstall: !!installPrompt, triggerInstall, dismissInstall, isOffline, wcoActive };
+}
