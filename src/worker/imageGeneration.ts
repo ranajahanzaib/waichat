@@ -1,5 +1,5 @@
-export const DEFAULT_IMAGE_MODEL = "@cf/black-forest-labs/flux-1-schnell";
-export const IMAGE_MODELS = [{ id: DEFAULT_IMAGE_MODEL, name: "Black Forest Labs FLUX.1 schnell" }];
+export { DEFAULT_IMAGE_MODEL_ID as DEFAULT_IMAGE_MODEL, IMAGE_MODEL_REGISTRY as IMAGE_MODELS, getImageModel, normalizeImageSettings } from "../shared/imageModels";
+import { getImageModel } from "../shared/imageModels";
 
 export interface GeneratedImage {
   bytes: Uint8Array;
@@ -30,9 +30,13 @@ export async function normalizeImageResponse(response: unknown): Promise<Generat
     bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
     seed = typeof result.seed === "number" ? result.seed : undefined;
   } else {
-    throw new Error("Image model returned an unsupported response");
+    throw new Error("unsupported_response");
   }
   const mimeType = detectImageMime(bytes);
-  if (!mimeType) throw new Error("Image model returned an unsupported image format");
+  if (!mimeType) throw new Error("unsupported_image_format");
   return { bytes, mimeType, seed };
+}
+
+export function modelPromptMax(modelId: string): number {
+  return getImageModel(modelId)?.promptMax ?? 2048;
 }
