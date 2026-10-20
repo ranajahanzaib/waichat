@@ -938,7 +938,7 @@ export function useChat(
       if (!trimmed) return;
 
       const current = conversations.find((c) => c.id === id);
-      if (!current || current.title === trimmed) return;
+      if (current?.title === trimmed || activeConversation?.id === id && activeConversation.title === trimmed) return;
 
       try {
         await storage.updateConversationTitle(id, trimmed);

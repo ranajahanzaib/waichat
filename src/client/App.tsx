@@ -628,6 +628,21 @@ export default function App() {
         type: "image", image_metadata: { prompt, model, size: imageSettings.size, steps, seed: result.seed, created_at: Date.now(), mime_type: result.blob.type, image_id: imageId },
       });
       setActiveVersion(parentId || rootKey, messageId);
+      if (!prior && messages.length === 0) {
+        try {
+          const response = await fetch("/api/title", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ message: prompt }),
+          });
+          const data = (await response.json()) as { title?: string };
+          const title = data.title?.trim() || prompt.split(" ").slice(0, 5).join(" ");
+          await renameConversation(conversation.id, title);
+        } catch {
+          const title = prompt.split(" ").slice(0, 5).join(" ");
+          await renameConversation(conversation.id, title).catch(() => {});
+        }
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Image generation failed";
       toast.error(message);

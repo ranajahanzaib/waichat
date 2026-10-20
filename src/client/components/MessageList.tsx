@@ -458,7 +458,7 @@ export default function MessageList({
           Lightning-fast AI at the edge. Powered by Cloudflare for limitless, zero-latency
           conversations.
         </p>
-        {pendingImage && <div className="w-full max-w-[720px] mb-6"><div className="h-64 rounded-xl bg-black/5 dark:bg-white/5 animate-pulse" /><p className="text-xs text-gray-500 mt-2">Generating image…</p></div>}
+        {pendingImage && <div className="w-full max-w-[720px] mx-auto mb-6"><div className="h-64 rounded-xl bg-black/5 dark:bg-white/5 animate-pulse" /><p className="text-xs text-gray-500 mt-2">Generating image…</p></div>}
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5 w-full max-w-4xl mb-10">
           <button
@@ -908,7 +908,7 @@ export default function MessageList({
           );
         })}
       </div>
-      {pendingImage && <div className="w-full max-w-[720px] mb-6"><div className="h-64 rounded-xl bg-black/5 dark:bg-white/5 animate-pulse" /><p className="text-xs text-gray-500 mt-2">Generating image…</p></div>}
+      {pendingImage && <div className="w-full max-w-4xl mx-auto px-4 md:px-8"><div className="w-full max-w-[720px] mx-auto mb-6"><div className="h-64 rounded-xl bg-black/5 dark:bg-white/5 animate-pulse" /><p className="text-xs text-gray-500 mt-2">Generating image…</p></div></div>}
       <div ref={bottomRef} className="h-4" />
 
       {/* Delete confirmation modal */}
@@ -946,7 +946,7 @@ function ImageMessage({ message, onRegenerate }: { message: Message; onRegenerat
       <span className="text-xs text-gray-500">{metadata?.prompt || message.content}</span>
     </div>}
     <div className="flex gap-2">
-      {imageUrl && <a href={imageUrl} download={`waichat-image.${metadata?.mime_type?.split("/")[1] || "img"}`} className="text-xs rounded-full border px-3 py-1.5">Download</a>}
+      {imageUrl && <a href={imageUrl} download={`waichat-image-${metadata?.image_id || message.id}.${metadata?.mime_type?.split("/")[1] || "img"}`} className="text-xs rounded-full border px-3 py-1.5">Download</a>}
       <button onClick={onRegenerate} className="text-xs rounded-full border px-3 py-1.5">Regenerate</button>
     </div>
   </div>;
