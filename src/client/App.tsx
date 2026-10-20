@@ -6,7 +6,7 @@ import SettingsModal from "./components/SettingsModal";
 import Sidebar from "./components/Sidebar";
 import { ToastContainer } from "./components/Toast";
 import { useChat } from "./hooks/useChat";
-import { DEFAULT_MODEL_ID, useModels } from "./hooks/useModels";
+import { DEFAULT_IMAGE_MODEL_ID, DEFAULT_MODEL_ID, useModels } from "./hooks/useModels";
 import { useToast } from "./hooks/useToast";
 import { useTransfer } from "./hooks/useTransfer";
 import type { Conversation, Message, StorageMode } from "./storage";
@@ -14,6 +14,8 @@ import { createStorage } from "./storage";
 import { exportAsMarkdown, exportAsPdf } from "./utils/chatExport";
 import { exportWorkspace } from "./utils/exportUtils";
 import { parseImportFile } from "./utils/importUtils";
+import { generateImage, estimateImageNeurons, readImageMetadata } from "./utils/imageGeneration";
+import { saveImageBytes } from "./storage/images";
 
 const STORAGE_MODE_KEY = "waichat:storage-mode";
 const SYNC_SETTINGS_KEY = "waichat:sync-settings";
@@ -129,7 +131,14 @@ export default function App() {
   const { transferState, initiateMove, executeMove, cancelMove, retryPendingCloudDeletes } =
     useTransfer();
 
-  const { models, refreshModels } = useModels();
+  const { models, imageModels, refreshModels } = useModels();
+  const [imageMode, setImageMode] = useState(false);
+  const [imageGenerating, setImageGenerating] = useState(false);
+  const [imageSettings, setImageSettings] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("waichat:image-settings") || '{"size":"model-default","steps":4,"dailyCap":0}'); }
+    catch { return { size: "model-default", steps: 4, dailyCap: 0 }; }
+  });
+  const [defaultImageModel, setDefaultImageModel] = useState(() => localStorage.getItem("waichat:image-model") || DEFAULT_IMAGE_MODEL_ID);
   const [defaultModel, setDefaultModel] = useState(
     () => localStorage.getItem(DEFAULT_MODEL_KEY) ?? DEFAULT_MODEL_ID,
   );
@@ -159,6 +168,8 @@ export default function App() {
     newConversation,
     deleteConversation,
     updateActiveModel,
+    updateActiveImageModel,
+    appendMessage,
     clearConversation,
     sendMessage,
     editMessage,
@@ -558,6 +569,10 @@ export default function App() {
     : (systemPrompts.find((p) => p.id === selectedPromptId)?.content ?? "");
 
   const handleSend = async (content: string) => {
+    if (imageMode) {
+      await handleGenerateImage(content);
+      return;
+    }
     if (isStreaming) return;
     const currentModel = activeConversation?.model ?? defaultModel;
     if (!activeConversation) {
@@ -580,6 +595,59 @@ export default function App() {
     setInputValue("");
     const key = activeConversation?.id || "new";
     setDrafts((prev) => ({ ...prev, [key]: "" }));
+  };
+
+  const handleGenerateImage = async (prompt: string, prior?: Message) => {
+    const model = prior?.model || activeConversation?.image_model || defaultImageModel;
+    const conversation = activeConversation || await newConversation(defaultModel, storageMode, selectedPromptId, effectiveSystemPrompt || null);
+    const steps = prior ? (readImageMetadata(prior.image_metadata)?.steps || imageSettings.steps || 4) : (imageSettings.steps || 4);
+    const estimate = estimateImageNeurons(steps);
+    const dayKey = new Date().toISOString().slice(0, 10);
+    const usageKey = `waichat:image-neurons:${dayKey}`;
+    const used = Number(localStorage.getItem(usageKey) || 0);
+    if (imageSettings.dailyCap > 0 && used + estimate > imageSettings.dailyCap) {
+      toast.error("Estimated daily image cap reached. Adjust it in Settings or try tomorrow.");
+      return;
+    }
+    setImageGenerating(true);
+    try {
+      if (!conversation.image_model || conversation.image_model !== model) {
+        await createStorage(storageMode).updateConversationImageModel(conversation.id, model);
+        if (activeConversation) await updateActiveImageModel(model);
+      }
+      const result = await generateImage(prompt, model, steps);
+      localStorage.setItem(usageKey, String(used + estimate));
+      const imageId = crypto.randomUUID();
+      await saveImageBytes(imageId, result.blob);
+      const messageId = crypto.randomUUID();
+      const rootKey = `${conversation.id}_root`;
+      const parentId = prior ? (prior.parent_id || undefined) : (activeBranch.at(-1)?.id || undefined);
+      await appendMessage({
+        id: messageId, conversation_id: conversation.id, role: "assistant", content: prompt,
+        created_at: Date.now(), model, parent_id: parentId,
+        type: "image", image_metadata: { prompt, model, size: imageSettings.size, steps, seed: result.seed, created_at: Date.now(), mime_type: result.blob.type, image_id: imageId },
+      });
+      setActiveVersion(parentId || rootKey, messageId);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Image generation failed";
+      toast.error(message);
+      if (!message.includes("cap")) {
+        const failedId = crypto.randomUUID();
+        const parentId = prior ? prior.parent_id : activeBranch.at(-1)?.id;
+        await appendMessage({
+          id: failedId, conversation_id: conversation.id, role: "assistant", content: prompt,
+          created_at: Date.now(), model, parent_id: parentId,
+          type: "image", image_metadata: { prompt, model, size: imageSettings.size, steps, created_at: Date.now(), error: message },
+        }).catch(() => {});
+        setActiveVersion(parentId || `${conversation.id}_root`, failedId);
+      }
+    } finally { setImageGenerating(false); }
+  };
+
+  const handleImageModelChange = (model: string) => {
+    setDefaultImageModel(model);
+    localStorage.setItem("waichat:image-model", model);
+    if (activeConversation) updateActiveImageModel(model);
   };
 
   const handleInputChange = useCallback((val: string) => {
@@ -1259,6 +1327,8 @@ export default function App() {
             onDelete={(messageId) => deleteMessage(messageId)}
             activeVersions={activeVersions}
             onVersionChange={setActiveVersion}
+            pendingImage={imageGenerating}
+            onRegenerateImage={(message) => handleGenerateImage(message.content, message)}
           />
           <ChatInput
             onSend={handleSend}
@@ -1274,6 +1344,12 @@ export default function App() {
             models={models}
             modelValue={activeConversation?.model ?? defaultModel}
             onModelChange={handleModelChange}
+            imageMode={imageMode}
+            onImageModeChange={setImageMode}
+            imageModels={imageModels}
+            imageModelValue={activeConversation?.image_model || defaultImageModel}
+            onImageModelChange={handleImageModelChange}
+            imageGenerating={imageGenerating}
           />
         </main>
 
@@ -1302,6 +1378,8 @@ export default function App() {
           refreshModels={refreshModels}
           tempExpiry={tempExpiry}
           onTempExpiryChange={handleTempExpiryChange}
+          imageSettings={imageSettings}
+          onImageSettingsChange={(settings: typeof imageSettings) => { setImageSettings(settings); localStorage.setItem("waichat:image-settings", JSON.stringify(settings)); }}
         />
       </div>
       <ToastContainer />

@@ -37,6 +37,7 @@ https://github.com/user-attachments/assets/e62c3a84-aa5d-4d24-be3f-f162115db89a
 - **Persistent drafts** - your unsent prompts are preserved across conversation switches and navigation, ensuring you never lose your work.
 - **System prompts** - per-workspace system prompt support with optional cloud sync
 - **Branching conversations** - navigate and restore previous conversation states via history branching
+- **Experimental image generation** - generate images with Workers AI in image mode; binaries stay in this browser and can be downloaded from each message
 - **Chat management** - collapsible sidebar, auto-generated titles, deep-linked URLs, per-message deletion, and one-click copy for prompts and responses
 - **Export / Import** - back up and restore your entire workspace data
 - **Auth-ready** - works out of the box with [Cloudflare Access](https://developers.cloudflare.com/cloudflare-one/policies/access/) for zero-trust private deployments
@@ -120,6 +121,12 @@ See [docs/self-hosting.md](./docs/self-hosting.md) for a step-by-step setup guid
 | **Temporary** | Configurable auto-expiry (1h to 24h). Wiped automatically via TTL.              |
 
 Toggle between modes in the app settings.
+
+### Image generation (experimental)
+
+Choose **Image** in the composer, enter a prompt, and send. The default FLUX.1 schnell model uses Workers AI’s documented 1,024px output and 1–8 steps. Image bytes are saved in the current browser’s IndexedDB; cloud chats sync image metadata, so another device shows the prompt and a regenerate option. Download images individually because workspace exports contain metadata only.
+
+Workers Free provides 10,000 Neurons per day shared by image generation and chat. Cloudflare resets the allowance daily at 00:00 UTC; availability and remaining quota are controlled by Cloudflare. The optional estimated daily image cap in **Settings → Images** only counts image estimates saved on this device; it does not track chat usage or other devices. Enable the feature by selecting **Image** in the composer; no extra bindings or paid services are required.
 
 ---
 

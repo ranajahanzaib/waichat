@@ -220,6 +220,7 @@ function parseChatGPTFormat(data: any[]): {
           created_at: (msgData.create_time || Date.now() / 1000) * 1000,
           model: model,
           parent_id: resolveParent(node.parent || null),
+          ...(msgData.metadata?.waichat_image ? { type: "image" as const, image_metadata: msgData.metadata.waichat_image } : {}),
         });
       }
 

@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import type { Model } from "../hooks/useModels";
 import type { StorageMode } from "../storage";
 import ModelPicker from "./ModelPicker";
+import type { Model as ImageModel } from "../hooks/useModels";
 
 interface ChatInputProps {
   onSend: (content: string) => void;
@@ -17,6 +18,12 @@ interface ChatInputProps {
   models: Model[];
   modelValue: string;
   onModelChange: (model: string) => void;
+  imageMode: boolean;
+  onImageModeChange: (enabled: boolean) => void;
+  imageModels: ImageModel[];
+  imageModelValue: string;
+  onImageModelChange: (model: string) => void;
+  imageGenerating: boolean;
 }
 
 export default function ChatInput({
@@ -33,6 +40,7 @@ export default function ChatInput({
   models,
   modelValue,
   onModelChange,
+  imageMode, onImageModeChange, imageModels, imageModelValue, onImageModelChange, imageGenerating,
 }: ChatInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -103,7 +111,7 @@ export default function ChatInput({
                     ? " in " + (streamingStorageMode === "cloud" ? "Cloud" : "Local") + " mode"
                     : "") +
                   "..."
-                : "Message WaiChat..."
+              : imageMode ? "Describe an image..." : "Message WaiChat..."
             }
             disabled={disabled || (isGenerating && !isStreamingHere)}
             rows={1}
@@ -111,17 +119,21 @@ export default function ChatInput({
           />
 
           <div className="flex items-center justify-between mt-2 pt-2 border-t-[0.5px] border-black/5 dark:border-white/5">
-            <ModelPicker
+            <button type="button" onClick={() => onImageModeChange(!imageMode)} className={`text-xs rounded-full px-3 py-1.5 border ${imageMode ? "bg-[#0A84FF]/10 border-[#0A84FF]/40 text-[#0A84FF]" : "border-black/10 dark:border-white/10 text-gray-500 dark:text-white/60"}`} aria-pressed={imageMode}>Image</button>
+            {imageMode ? <>
+              <ModelPicker models={imageModels} value={imageModelValue} onChange={onImageModelChange} disabled={imageGenerating} className="max-w-[200px]" />
+              <span className="text-[10px] text-gray-400 hidden sm:inline">10,000 Neurons/day shared with chat</span>
+            </> : <ModelPicker
               models={models}
               value={modelValue}
               onChange={onModelChange}
               disabled={disabled || isGenerating}
               className="max-w-[200px]"
-            />
+            />}
 
             <button
               type="submit"
-              disabled={disabled || isGenerating || !value.trim()}
+              disabled={disabled || isGenerating || imageGenerating || !value.trim()}
               className="w-8 h-8 bg-black/5 dark:bg-white/10 border-[0.5px] border-black/10 dark:border-white/10 rounded-full flex items-center justify-center text-gray-500 dark:text-white/80 hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black hover:scale-105 disabled:opacity-40 disabled:hover:bg-black/5 disabled:hover:text-gray-500 dark:disabled:hover:bg-white/10 dark:disabled:hover:text-white/80 disabled:hover:scale-100 transition-all duration-200 cursor-pointer shrink-0"
               aria-label="Send message"
             >

@@ -7,6 +7,7 @@ export interface Model {
 }
 
 export const DEFAULT_MODEL_ID = "@cf/google/gemma-4-26b-a4b-it";
+export const DEFAULT_IMAGE_MODEL_ID = "@cf/black-forest-labs/flux-1-schnell";
 
 export const FALLBACK_MODELS: Model[] = [
   { id: "@cf/google/gemma-4-26b-a4b-it", name: "Google Gemma 4 26B" },
@@ -36,6 +37,7 @@ export const FALLBACK_MODELS: Model[] = [
 export function useModels() {
   const [models, setModels] = useState<Model[]>(FALLBACK_MODELS);
   const [loading, setLoading] = useState(true);
+  const [imageModels, setImageModels] = useState<Model[]>([{ id: DEFAULT_IMAGE_MODEL_ID, name: "Black Forest Labs FLUX.1 schnell" }]);
 
   const refreshModels = (newModels?: Model[]) => {
     if (newModels) {
@@ -57,7 +59,8 @@ export function useModels() {
 
   useEffect(() => {
     refreshModels();
+    fetch("/api/images/models").then((res) => res.json() as Promise<Model[]>).then((data) => { if (Array.isArray(data) && data.length) setImageModels(data); }).catch(() => {});
   }, []);
 
-  return { models, loading, refreshModels };
+  return { models, imageModels, loading, refreshModels };
 }

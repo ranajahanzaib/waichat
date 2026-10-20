@@ -1,4 +1,5 @@
 import type { Conversation, ConversationSearchResult, DeleteMessageResult, Message, StorageAdapter } from "./index";
+import { deleteImageBytes } from "./images";
 
 export class CloudStorage implements StorageAdapter {
   async getConversations(): Promise<Conversation[]> {
@@ -13,7 +14,8 @@ export class CloudStorage implements StorageAdapter {
     const res = await fetch(`/api/conversations/${id}`);
     if (res.status === 404) return null;
     if (!res.ok) throw new Error("Failed to fetch conversation");
-    return res.json();
+    const result = await res.json() as { conversation: Conversation; messages: Message[] };
+    return { ...result, messages: result.messages.map((message) => ({ ...message, image_metadata: parseMetadata(message.image_metadata) })) };
   }
 
   async createConversation(model: string, systemPromptId?: string | null, systemPromptContent?: string | null): Promise<Conversation> {
@@ -27,8 +29,11 @@ export class CloudStorage implements StorageAdapter {
   }
 
   async deleteConversation(id: string): Promise<void> {
+    const existing = await this.getConversation(id);
     const res = await fetch(`/api/conversations/${id}`, { method: "DELETE" });
     if (!res.ok) throw new Error("Failed to delete conversation");
+    const imageIds = existing?.messages.map((message) => typeof message.image_metadata === "object" ? message.image_metadata?.image_id : undefined).filter((imageId): imageId is string => !!imageId) || [];
+    await deleteImageBytes(imageIds).catch(() => {});
   }
 
   async updateConversationModel(id: string, model: string): Promise<void> {
@@ -40,6 +45,11 @@ export class CloudStorage implements StorageAdapter {
     if (!res.ok) throw new Error("Failed to update conversation model");
   }
 
+  async updateConversationImageModel(id: string, model: string): Promise<void> {
+    const res = await fetch(`/api/conversations/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ image_model: model }) });
+    if (!res.ok) throw new Error("Failed to update image model");
+  }
+
   async saveMessage(msg: Omit<Message, "id" | "created_at"> & { id?: string }): Promise<Message> {
     const res = await fetch(`/api/conversations/${msg.conversation_id}/messages`, {
       method: "POST",
@@ -47,7 +57,8 @@ export class CloudStorage implements StorageAdapter {
       body: JSON.stringify(msg),
     });
     if (!res.ok) throw new Error("Failed to save message");
-    return res.json();
+    const message = await res.json() as Message;
+    return { ...message, image_metadata: parseMetadata(message.image_metadata) };
   }
 
   async updateConversationTitle(id: string, title: string): Promise<void> {
@@ -78,7 +89,7 @@ export class CloudStorage implements StorageAdapter {
     const res = await fetch("/api/conversations/import", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ conversation, messages }),
+      body: JSON.stringify({ conversation, messages: messages.map((message) => ({ ...message, image_metadata: typeof message.image_metadata === "string" ? safeMetadata(message.image_metadata) : message.image_metadata })) }),
     });
     if (!res.ok) {
       const errorData = (await res.json().catch(() => ({}))) as { error?: string };
@@ -97,4 +108,12 @@ export class CloudStorage implements StorageAdapter {
       throw new Error("Failed to clear cloud conversations");
     }
   }
+}
+
+function safeMetadata(value: string): Message["image_metadata"] {
+  try { return JSON.parse(value); } catch { return undefined; }
+}
+
+function parseMetadata(value: Message["image_metadata"]): Message["image_metadata"] {
+  return typeof value === "string" ? safeMetadata(value) : value;
 }

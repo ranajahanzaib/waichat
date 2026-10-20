@@ -9,6 +9,7 @@ export interface Conversation {
   expires_at?: number;
   system_prompt_id?: string | null;
   system_prompt?: string | null;
+  image_model?: string | null;
 }
 
 export interface Message {
@@ -20,6 +21,21 @@ export interface Message {
   model?: string;
   parent_id?: string;
   deleted_at?: number;
+  type?: "text" | "image";
+  image_metadata?: ImageMetadata | string;
+}
+
+export interface ImageMetadata {
+  prompt: string;
+  model: string;
+  size: "model-default";
+  steps: number;
+  seed?: number;
+  created_at: number;
+  mime_type?: string;
+  local_only?: boolean;
+  image_id?: string;
+  error?: string;
 }
 
 export interface DeleteMessageResult {
@@ -37,6 +53,7 @@ export interface StorageAdapter {
   ): Promise<Conversation>;
   deleteConversation(id: string): Promise<void>;
   updateConversationModel(id: string, model: string): Promise<void>;
+  updateConversationImageModel(id: string, model: string): Promise<void>;
   saveMessage(message: Omit<Message, "id" | "created_at"> & { id?: string }): Promise<Message>;
   updateConversationTitle(id: string, title: string): Promise<void>;
   deleteMessage(conversationId: string, messageId: string): Promise<DeleteMessageResult>;

@@ -5,6 +5,8 @@ import { prism, vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/pri
 import remarkGfm from "remark-gfm";
 import type { Message } from "../storage";
 import ConfirmModal from "./ConfirmModal";
+import { useImageBytes } from "../hooks/useImageBytes";
+import { readImageMetadata } from "../utils/imageGeneration";
 
 interface MessageListProps {
   messages: Message[];
@@ -17,6 +19,8 @@ interface MessageListProps {
   onDelete?: (messageId: string) => void;
   activeVersions: Record<string, string>;
   onVersionChange?: (parentId: string, messageId: string) => void;
+  onRegenerateImage?: (message: Message) => void;
+  pendingImage?: boolean;
 }
 
 function ThoughtParser({ content }: { content: string }) {
@@ -336,6 +340,8 @@ export default function MessageList({
   onDelete,
   activeVersions,
   onVersionChange,
+  onRegenerateImage,
+  pendingImage = false,
 }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -452,6 +458,7 @@ export default function MessageList({
           Lightning-fast AI at the edge. Powered by Cloudflare for limitless, zero-latency
           conversations.
         </p>
+        {pendingImage && <div className="w-full max-w-[720px] mb-6"><div className="h-64 rounded-xl bg-black/5 dark:bg-white/5 animate-pulse" /><p className="text-xs text-gray-500 mt-2">Generating image…</p></div>}
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5 w-full max-w-4xl mb-10">
           <button
@@ -769,7 +776,9 @@ export default function MessageList({
               </div>
 
               <div className="w-full text-[15px] md:text-[16px] leading-relaxed text-gray-900 dark:text-white/95">
-                {isCurrentlyStreaming ? (
+                {m.type === "image" ? (
+                  <ImageMessage message={m} onRegenerate={() => onRegenerateImage?.(m)} />
+                ) : isCurrentlyStreaming ? (
                   <span className="inline-flex gap-1 mt-2">
                     <span className="w-1.5 h-1.5 bg-gray-400 dark:bg-white/40 rounded-full animate-bounce [animation-delay:0ms]" />
                     <span className="w-1.5 h-1.5 bg-gray-400 dark:bg-white/40 rounded-full animate-bounce [animation-delay:150ms]" />
@@ -899,6 +908,7 @@ export default function MessageList({
           );
         })}
       </div>
+      {pendingImage && <div className="w-full max-w-[720px] mb-6"><div className="h-64 rounded-xl bg-black/5 dark:bg-white/5 animate-pulse" /><p className="text-xs text-gray-500 mt-2">Generating image…</p></div>}
       <div ref={bottomRef} className="h-4" />
 
       {/* Delete confirmation modal */}
@@ -923,4 +933,21 @@ export default function MessageList({
       />
     </div>
   );
+}
+
+function ImageMessage({ message, onRegenerate }: { message: Message; onRegenerate: () => void }) {
+  const metadata = readImageMetadata(message.image_metadata);
+  const imageUrl = useImageBytes(metadata?.image_id);
+  const error = metadata && "error" in metadata ? String(metadata.error) : undefined;
+  return <div className="max-w-full space-y-3">
+    <p className="whitespace-pre-wrap">{metadata?.prompt || message.content}</p>
+    {imageUrl ? <img src={imageUrl} alt={metadata?.prompt || "Generated image"} className="max-h-[560px] max-w-full rounded-xl border border-black/10 dark:border-white/10" /> : <div className="w-full max-w-lg min-h-44 rounded-xl border border-black/10 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.03] flex flex-col justify-center p-5 gap-2">
+      <strong className="text-sm">{error || (metadata?.image_id || metadata?.local_only ? "Image stored on another device" : "Image unavailable")}</strong>
+      <span className="text-xs text-gray-500">{metadata?.prompt || message.content}</span>
+    </div>}
+    <div className="flex gap-2">
+      {imageUrl && <a href={imageUrl} download={`waichat-image.${metadata?.mime_type?.split("/")[1] || "img"}`} className="text-xs rounded-full border px-3 py-1.5">Download</a>}
+      <button onClick={onRegenerate} className="text-xs rounded-full border px-3 py-1.5">Regenerate</button>
+    </div>
+  </div>;
 }

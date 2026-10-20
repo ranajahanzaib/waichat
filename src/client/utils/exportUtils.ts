@@ -48,6 +48,7 @@ export function convertToChatGPTFormat(conversations: Conversation[], messages: 
           },
           metadata: {
             model: msg.model || conv.model,
+            ...(msg.type === "image" ? { waichat_image: typeof msg.image_metadata === "string" ? safeParseImageMetadata(msg.image_metadata) : msg.image_metadata } : {}),
           },
         },
         parent: msg.parent_id || null,
@@ -80,6 +81,10 @@ export function convertToChatGPTFormat(conversations: Conversation[], messages: 
   }
 
   return result;
+}
+
+function safeParseImageMetadata(value: string) {
+  try { return JSON.parse(value); } catch { return undefined; }
 }
 
 export async function exportWorkspace(

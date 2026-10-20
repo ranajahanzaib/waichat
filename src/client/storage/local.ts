@@ -1,4 +1,5 @@
 import type { Conversation, ConversationSearchResult, DeleteMessageResult, Message, StorageAdapter } from "./index";
+import { deleteImageBytes } from "./images";
 
 const CONVERSATIONS_KEY = "waichat:conversations";
 const MESSAGES_KEY = (id: string) => `waichat:messages:${id}`;
@@ -86,15 +87,22 @@ export class LocalStorage implements StorageAdapter {
   }
 
   async deleteConversation(id: string): Promise<void> {
+    const imageIds = this.getMessagesRaw(id).map((message) => typeof message.image_metadata === "object" ? message.image_metadata?.image_id : undefined).filter((imageId): imageId is string => !!imageId);
     const conversations = this.getConversationsRaw().filter((c) => c.id !== id);
     this.setConversations(conversations);
     localStorage.removeItem(MESSAGES_KEY(id));
+    await deleteImageBytes(imageIds).catch(() => {});
   }
 
   async updateConversationModel(id: string, model: string): Promise<void> {
     const conversations = this.getConversationsRaw().map((c) =>
       c.id === id ? { ...c, model, updated_at: Date.now() } : c,
     );
+    this.setConversations(conversations);
+  }
+
+  async updateConversationImageModel(id: string, model: string): Promise<void> {
+    const conversations = this.getConversationsRaw().map((c) => c.id === id ? { ...c, image_model: model, updated_at: Date.now() } : c);
     this.setConversations(conversations);
   }
 
@@ -182,6 +190,7 @@ export class LocalStorage implements StorageAdapter {
       id: conversation.id,
       title: conversation.title,
       model: conversation.model,
+      image_model: conversation.image_model,
       created_at: conversation.created_at,
       updated_at: conversation.updated_at,
     });
@@ -266,6 +275,8 @@ export class LocalStorage implements StorageAdapter {
     this.setConversations(toKeep);
 
     for (const conv of expired) {
+      const imageIds = this.getMessagesRaw(conv.id).map((message) => typeof message.image_metadata === "object" ? message.image_metadata?.image_id : undefined).filter((imageId): imageId is string => !!imageId);
+      await deleteImageBytes(imageIds).catch(() => {});
       localStorage.removeItem(MESSAGES_KEY(conv.id));
       localStorage.removeItem(`waichat:versions:${conv.id}`);
     }
@@ -284,6 +295,8 @@ export class LocalStorage implements StorageAdapter {
       this.isTemporary ? !!c.is_temporary : !c.is_temporary,
     );
     for (const conv of toDelete) {
+      const imageIds = this.getMessagesRaw(conv.id).map((message) => typeof message.image_metadata === "object" ? message.image_metadata?.image_id : undefined).filter((imageId): imageId is string => !!imageId);
+      await deleteImageBytes(imageIds).catch(() => {});
       localStorage.removeItem(MESSAGES_KEY(conv.id));
       localStorage.removeItem(`waichat:versions:${conv.id}`);
     }

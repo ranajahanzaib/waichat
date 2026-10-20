@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Conversation, Message, StorageMode } from "../storage";
 import { createStorage } from "../storage";
+import { LocalStorage } from "../storage/local";
 import { useToast } from "./useToast";
 
 interface UseChatReturn {
@@ -16,6 +17,8 @@ interface UseChatReturn {
   newConversation: (model: string, targetMode?: StorageMode, systemPromptId?: string | null, systemPromptContent?: string | null) => Promise<Conversation>;
   deleteConversation: (id: string) => Promise<void>;
   updateActiveModel: (model: string) => Promise<void>;
+  updateActiveImageModel: (model: string) => Promise<void>;
+  appendMessage: (message: Message) => Promise<void>;
   clearConversation: () => void;
   sendMessage: (
     content: string,
@@ -260,6 +263,26 @@ export function useChat(
     },
     [storage, activeConversation],
   );
+
+  const updateActiveImageModel = useCallback(async (model: string) => {
+    if (!activeConversation) return;
+    await storage.updateConversationImageModel(activeConversation.id, model);
+    const now = Date.now();
+    setActiveConversation((previous) => previous ? { ...previous, image_model: model, updated_at: now } : null);
+    setConversations((previous) => previous.map((conversation) => conversation.id === activeConversation.id ? { ...conversation, image_model: model, updated_at: now } : conversation));
+  }, [storage, activeConversation]);
+
+  const appendMessage = useCallback(async (message: Message) => {
+    try {
+      await storage.saveMessage(message);
+    } catch (error) {
+      if (storageMode !== "cloud") throw error;
+      const metadata = typeof message.image_metadata === "object" && message.image_metadata ? message.image_metadata : undefined;
+      await new LocalStorage(false).saveMessage({ ...message, image_metadata: metadata ? { ...metadata, local_only: true } : undefined });
+      toast.error("Cloud image metadata could not be saved. This image is available only in this browser.");
+    }
+    setMessages((previous) => previous.some((item) => item.id === message.id) ? previous.map((item) => item.id === message.id ? message : item) : [...previous, message]);
+  }, [storage, storageMode, toast]);
 
   const clearConversation = useCallback(() => {
     setActiveConversation(null);
@@ -900,6 +923,8 @@ export function useChat(
     newConversation,
     deleteConversation,
     updateActiveModel,
+    updateActiveImageModel,
+    appendMessage,
     clearConversation,
     sendMessage,
     editMessage,

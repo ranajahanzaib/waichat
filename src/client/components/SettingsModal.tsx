@@ -29,6 +29,8 @@ interface SettingsModalProps {
   refreshModels: (newModels?: Model[]) => void;
   tempExpiry: string;
   onTempExpiryChange: (expiry: string) => void;
+  imageSettings: { size: string; steps: number; dailyCap: number };
+  onImageSettingsChange: (settings: { size: string; steps: number; dailyCap: number }) => void;
 }
 
 interface SecretsStatus {
@@ -59,6 +61,8 @@ export default function SettingsModal({
   refreshModels,
   tempExpiry,
   onTempExpiryChange,
+  imageSettings,
+  onImageSettingsChange,
 }: SettingsModalProps) {
   const toast = useToast();
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -162,13 +166,14 @@ export default function SettingsModal({
       setIsResetting(false);
     }
   };
-  const [activeTab, setActiveTab] = useState<"general" | "models" | "prompt" | "data">("general");
+  const [activeTab, setActiveTab] = useState<"general" | "models" | "prompt" | "data" | "images">("general");
 
   const tabs = [
     { id: "general", label: "General" },
     { id: "models", label: "Models" },
     { id: "prompt", label: "System Prompt" },
     { id: "data", label: "Data" },
+    { id: "images", label: "Images" },
   ] as const;
 
   // Sync draft with props when modal opens
@@ -748,6 +753,7 @@ export default function SettingsModal({
 
               {activeTab === "data" && (
                 <section className="space-y-10 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  <p className="text-xs text-gray-500 dark:text-white/50">Generated image bytes are not included in exports. Download images individually from their messages.</p>
                   {/* Conversations */}
                   <div>
                     <h3 className="text-[11px] md:text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-white/40 mb-4">
@@ -936,6 +942,17 @@ export default function SettingsModal({
                       </div>
                     </div>
                   </div>
+                </section>
+              )}
+
+              {activeTab === "images" && (
+                <section className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-white/40">Image generation defaults</h3>
+                  <p className="text-xs text-gray-500 dark:text-white/50">Workers Free includes 10,000 Neurons per day shared by chat and images. Chat usage shares this Cloudflare allocation and is not tracked here.</p>
+                  <label className="block text-sm">Size<select value={imageSettings.size} onChange={(e) => onImageSettingsChange({ ...imageSettings, size: e.target.value })} className="mt-2 block w-full rounded-lg border border-black/10 dark:border-white/10 bg-transparent p-2"><option value="model-default">Model default (1024px)</option></select></label>
+                  <label className="block text-sm">Steps<select value={imageSettings.steps} onChange={(e) => onImageSettingsChange({ ...imageSettings, steps: Number(e.target.value) })} className="mt-2 block w-full rounded-lg border border-black/10 dark:border-white/10 bg-transparent p-2">{[1, 2, 3, 4, 5, 6, 7, 8].map((steps) => <option key={steps} value={steps}>{steps}</option>)}</select></label>
+                  <label className="block text-sm">Estimated daily image cap (Neurons; 0 disables)<input type="number" min="0" step="10" value={imageSettings.dailyCap} onChange={(e) => onImageSettingsChange({ ...imageSettings, dailyCap: Math.max(0, Number(e.target.value)) })} className="mt-2 block w-full rounded-lg border border-black/10 dark:border-white/10 bg-transparent p-2" /></label>
+                  <p className="text-xs text-gray-500 dark:text-white/50">Estimate uses documented model pricing and default output size. It counts image generations on this device only; chat usage is shared and not tracked here.</p>
                 </section>
               )}
             </div>
