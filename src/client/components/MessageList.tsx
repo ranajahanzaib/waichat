@@ -422,9 +422,20 @@ export default function MessageList({
 
     // Scroll down if we aren't locked
     if (!isUserScrolled.current) {
-      bottomRef.current?.scrollIntoView({ behavior: "auto" });
+      const container = scrollRef.current;
+      if (container) container.scrollTo({ top: container.scrollHeight, behavior: "auto" });
     }
   }, [messages]);
+
+  useEffect(() => {
+    if (!pendingImage && !isStreaming) return;
+    isUserScrolled.current = false;
+    const frame = requestAnimationFrame(() => {
+      const container = scrollRef.current;
+      if (container) container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [pendingImage, isStreaming]);
 
   const handleCopy = async (id: string, content: string) => {
     // Strip <think> tags (even unclosed ones) before copying to clipboard
@@ -556,7 +567,7 @@ export default function MessageList({
     <div
       ref={scrollRef}
       onScroll={handleScroll}
-      className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-black/10 dark:[&::-webkit-scrollbar-thumb]:bg-white/10 [&::-webkit-scrollbar-thumb]:rounded-full"
+      className="min-h-0 flex-1 overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-black/10 dark:[&::-webkit-scrollbar-thumb]:bg-white/10 [&::-webkit-scrollbar-thumb]:rounded-full"
     >
       <div className="max-w-4xl mx-auto px-4 md:px-8 py-10 space-y-12">
         {displayItems.map((item, idx) => {
