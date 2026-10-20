@@ -70,7 +70,7 @@ export async function getMessages(db: D1Database, conversationId: string): Promi
 export async function saveMessage(db: D1Database, message: Message): Promise<void> {
   await db
     .prepare(
-      "INSERT INTO messages (id, conversation_id, role, content, created_at, model, parent_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      "INSERT INTO messages (id, conversation_id, role, content, created_at, model, parent_id, type, image_metadata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(
       message.id,
@@ -80,6 +80,8 @@ export async function saveMessage(db: D1Database, message: Message): Promise<voi
       message.created_at,
       message.model || null,
       message.parent_id || null,
+      message.type || "text",
+      message.image_metadata ? (typeof message.image_metadata === "string" ? message.image_metadata : JSON.stringify(message.image_metadata)) : null,
     )
     .run();
 }
@@ -148,7 +150,7 @@ export async function importConversation(
   const msgStatements = messages.map((m) =>
     db
       .prepare(
-        "INSERT OR REPLACE INTO messages (id, conversation_id, role, content, created_at, model, parent_id, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT OR REPLACE INTO messages (id, conversation_id, role, content, created_at, model, parent_id, deleted_at, type, image_metadata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       )
       .bind(
         m.id,
@@ -159,13 +161,15 @@ export async function importConversation(
         m.model || null,
         m.parent_id || null,
         m.deleted_at || null,
+        m.type || "text",
+        m.image_metadata ? (typeof m.image_metadata === "string" ? m.image_metadata : JSON.stringify(m.image_metadata)) : null,
       ),
   );
 
   // First batch: conversation INSERT + first chunk of messages
   const convInsert = db
     .prepare(
-      "INSERT OR REPLACE INTO conversations (id, title, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+        "INSERT OR REPLACE INTO conversations (id, title, model, created_at, updated_at, image_model) VALUES (?, ?, ?, ?, ?, ?)",
     )
     .bind(
       conversation.id,
@@ -173,6 +177,7 @@ export async function importConversation(
       conversation.model,
       conversation.created_at,
       conversation.updated_at,
+        conversation.image_model || null,
     );
 
   const firstChunk = msgStatements.slice(0, BATCH_SIZE);

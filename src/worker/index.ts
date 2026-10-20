@@ -18,6 +18,7 @@ import {
   updateConversationTitle,
 } from "./db";
 import type { ChatRequest, Conversation, Env, Message, Model, SystemPrompt } from "./types";
+import imageRoutes from "./routes/images";
 
 // Isolate-specific in-memory cache for models
 let modelCache: { data: Model[]; timestamp: number } | null = null;
@@ -147,6 +148,7 @@ async function fetchDynamicModels(accountId: string, apiToken: string): Promise<
 const app = new Hono<{ Bindings: Env }>();
 
 app.use("/api/*", cors());
+app.route("/api/images", imageRoutes);
 
 // Models - fetched live from Cloudflare API if account ID is set, otherwise hardcoded fallback
 app.get("/api/models", async (c) => {
@@ -293,10 +295,10 @@ app.get("/api/export", async (c) => {
     };
 
     const conversations = await fetchAll(
-      "SELECT id, title, model, created_at, updated_at FROM conversations",
+      "SELECT id, title, model, image_model, created_at, updated_at FROM conversations",
     );
     const messages = await fetchAll(
-      "SELECT id, conversation_id, role, content, created_at, model, parent_id FROM messages WHERE deleted_at IS NULL",
+      "SELECT id, conversation_id, role, content, created_at, model, parent_id, type, image_metadata FROM messages WHERE deleted_at IS NULL",
     );
     const settingsRaw = await fetchAll("SELECT key, value FROM settings");
 
@@ -412,6 +414,7 @@ app.post("/api/conversations/import", async (c) => {
         id: string;
         title: string;
         model: string;
+        image_model?: string | null;
         created_at: number;
         updated_at: number;
       };
@@ -424,6 +427,8 @@ app.post("/api/conversations/import", async (c) => {
         model?: string;
         parent_id?: string;
         deleted_at?: number;
+        type?: "text" | "image";
+        image_metadata?: Record<string, unknown> | string;
       }[];
     }>();
 
@@ -451,7 +456,7 @@ app.delete("/api/conversations/:id", async (c) => {
 
 app.patch("/api/conversations/:id", async (c) => {
   const id = c.req.param("id");
-  const body = await c.req.json<{ model?: string; title?: string }>();
+  const body = await c.req.json<{ model?: string; image_model?: string | null; title?: string }>();
   const db = c.env.DB;
 
   const conversation = await getConversation(db, id);
@@ -465,6 +470,12 @@ app.patch("/api/conversations/:id", async (c) => {
   if (body.model) {
     updates.push("model = ?");
     params.push(body.model);
+    updates.push("updated_at = ?");
+    params.push(Date.now());
+  }
+  if (body.image_model !== undefined) {
+    updates.push("image_model = ?");
+    params.push(body.image_model);
     updates.push("updated_at = ?");
     params.push(Date.now());
   }
@@ -509,7 +520,7 @@ app.post("/api/conversations/:conversationId/messages", async (c) => {
 
   await db
     .prepare(
-      "INSERT INTO messages (id, conversation_id, role, content, created_at, model, parent_id) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET content=excluded.content, model=COALESCE(excluded.model, messages.model)",
+      "INSERT INTO messages (id, conversation_id, role, content, created_at, model, parent_id, type, image_metadata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET content=excluded.content, model=COALESCE(excluded.model, messages.model), type=excluded.type, image_metadata=excluded.image_metadata",
     )
     .bind(
       messageId,
@@ -519,6 +530,8 @@ app.post("/api/conversations/:conversationId/messages", async (c) => {
       createdAt,
       body.model || null,
       body.parent_id || null,
+      body.type || "text",
+      body.image_metadata ? JSON.stringify(body.image_metadata) : null,
     )
     .run();
 
@@ -533,6 +546,8 @@ app.post("/api/conversations/:conversationId/messages", async (c) => {
     id: messageId,
     conversation_id: conversationId,
     created_at: createdAt,
+    type: body.type || "text",
+    image_metadata: body.image_metadata ? JSON.stringify(body.image_metadata) : null,
   };
 
   return c.json(fullMessage);

@@ -15,6 +15,7 @@ export interface Conversation {
   import_complete?: number | null;
   system_prompt_id?: string | null;
   system_prompt?: string | null;
+  image_model?: string | null;
 }
 
 export interface Message {
@@ -26,6 +27,8 @@ export interface Message {
   model?: string;
   parent_id?: string;
   deleted_at?: number;
+  type?: "text" | "image";
+  image_metadata?: string | Record<string, unknown> | null;
 }
 
 export interface Model {
