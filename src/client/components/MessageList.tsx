@@ -7,6 +7,7 @@ import type { Message } from "../storage";
 import ConfirmModal from "./ConfirmModal";
 import { useImageBytes } from "../hooks/useImageBytes";
 import { readImageMetadata } from "../utils/imageGeneration";
+import { getImageModel } from "../../shared/imageModels";
 
 interface MessageListProps {
   messages: Message[];
@@ -937,6 +938,7 @@ export default function MessageList({
 
 function ImageMessage({ message, onRegenerate }: { message: Message; onRegenerate: () => void }) {
   const metadata = readImageMetadata(message.image_metadata);
+  const termsUrl = metadata?.model ? getImageModel(metadata.model)?.termsUrl : undefined;
   const imageUrl = useImageBytes(metadata?.image_id);
   const error = metadata && "error" in metadata ? String(metadata.error) : undefined;
   return <div className="max-w-full space-y-3">
@@ -949,5 +951,6 @@ function ImageMessage({ message, onRegenerate }: { message: Message; onRegenerat
       {imageUrl && <a href={imageUrl} download={`waichat-image-${metadata?.image_id || message.id}.${metadata?.mime_type?.split("/")[1] || "img"}`} className="text-xs rounded-full border px-3 py-1.5">Download</a>}
       <button onClick={onRegenerate} className="text-xs rounded-full border px-3 py-1.5">Regenerate</button>
     </div>
+    {metadata?.license_badge && <span className="text-[10px] text-gray-400">License: {termsUrl ? <a href={termsUrl} target="_blank" rel="noreferrer" className="underline underline-offset-2">{metadata.license_badge}</a> : metadata.license_badge}</span>}
   </div>;
 }

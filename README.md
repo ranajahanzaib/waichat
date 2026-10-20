@@ -126,6 +126,19 @@ Toggle between modes in the app settings.
 
 Choose **Image** in the composer, enter a prompt, and send. The default FLUX.1 schnell model uses Workers AI’s documented 1,024px output and 1–8 steps. Image bytes are saved in the current browser’s IndexedDB; cloud chats sync image metadata, so another device shows the prompt and a regenerate option. Download images individually because workspace exports contain metadata only.
 
+The model picker groups six Cloudflare-hosted models by estimated free-tier use. Estimates below use each model's default size and default steps; the 10,000 Neurons/day allocation is shared with chat and usage is not tracked by WaiChat. Counts are approximate and can change with Cloudflare pricing or model defaults.
+
+| Model | Estimated Neurons/image | Approx. images per 10,000 Neurons | License badge |
+| --- | ---: | ---: | --- |
+| FLUX.1 schnell | 58 | 173 | [Apache 2.0](https://bfl.ai/legal/terms-of-service) |
+| FLUX.2 Klein 4B | 105 | 95 | [Apache 2.0](https://bfl.ai/legal/terms-of-service) |
+| FLUX.2 Klein 9B | 1,364 | 7 | [Non-commercial license: check Terms before selling outputs](https://bfl.ai/legal/terms-of-service) |
+| FLUX.2 dev | 3,750 | 2 | [Non-commercial license: check Terms before selling outputs](https://bfl.ai/legal/terms-of-service) |
+| Phoenix 1.0 | 2,370 | 4 | [Check provider terms](https://leonardo.ai/terms-of-service) |
+| Lucid Origin | 2,844 | 3 | [Check provider terms](https://leonardo.ai/terms-of-service) |
+
+Read each model provider's current terms before selling generated images. License badges are informational, not legal advice. Choose **Settings → Images** to set the default model, supported size, steps, and an optional estimated daily cap. No additional bindings or paid-plan features are used.
+
 Workers Free provides 10,000 Neurons per day shared by image generation and chat. Cloudflare resets the allowance daily at 00:00 UTC; availability and remaining quota are controlled by Cloudflare. The optional estimated daily image cap in **Settings → Images** only counts image estimates saved on this device; it does not track chat usage or other devices. Enable the feature by selecting **Image** in the composer; no extra bindings or paid services are required.
 
 ---

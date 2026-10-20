@@ -1,10 +1,11 @@
+import { FREE_NEURON_ALLOCATION, getImageModel, normalizeImageSettings, type ImageSize } from "../../shared/imageModels";
 import type { ImageMetadata } from "../storage";
 
-export async function generateImage(prompt: string, model: string, steps: number): Promise<{ blob: Blob; seed?: number }> {
+export async function generateImage(prompt: string, model: string, size: ImageSize, steps: number): Promise<{ blob: Blob; seed?: number }> {
   const response = await fetch("/api/images/generate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt, model, size: "model-default", steps }),
+    body: JSON.stringify({ prompt, model, size, steps }),
   });
   if (!response.ok) {
     const body = await response.json().catch(() => ({})) as { error?: string };
@@ -14,9 +15,16 @@ export async function generateImage(prompt: string, model: string, steps: number
   return { blob, seed: Number(response.headers.get("X-Image-Seed")) || undefined };
 }
 
-export function estimateImageNeurons(steps: number): number {
-  // FLUX.1 schnell defaults to a 1024px image (four 512px tiles): 4.8 neurons/tile plus 9.6/step.
-  return Math.ceil(4.8 * 4 + 9.6 * steps);
+export function estimateImageNeurons(modelId: string, size: string, steps: number): number {
+  const model = getImageModel(modelId);
+  if (!model) return 0;
+  const settings = normalizeImageSettings(model, size, steps);
+  return Math.ceil(model.estimateNeurons(settings.size, settings.steps));
+}
+
+export function estimateImagesPerDay(modelId: string, size: string, steps: number): number {
+  const cost = estimateImageNeurons(modelId, size, steps);
+  return cost > 0 ? Math.floor(FREE_NEURON_ALLOCATION / cost) : 0;
 }
 
 export function readImageMetadata(value: unknown): ImageMetadata | undefined {

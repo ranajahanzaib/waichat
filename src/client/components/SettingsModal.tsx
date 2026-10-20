@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { SystemPrompt } from "../App";
 import type { Model } from "../hooks/useModels";
+import { IMAGE_SIZE_LABELS, type ImageModelDefinition, type ImageSize } from "../../shared/imageModels";
+import ImageModelPicker from "./ImageModelPicker";
 import { useToast } from "../hooks/useToast";
 import type { StorageMode } from "../storage";
 import CloudflareHelpModal from "./CloudflareHelpModal";
@@ -29,8 +31,11 @@ interface SettingsModalProps {
   refreshModels: (newModels?: Model[]) => void;
   tempExpiry: string;
   onTempExpiryChange: (expiry: string) => void;
-  imageSettings: { size: string; steps: number; dailyCap: number };
-  onImageSettingsChange: (settings: { size: string; steps: number; dailyCap: number }) => void;
+  imageSettings: { size: ImageSize; steps: number; dailyCap: number };
+  onImageSettingsChange: (settings: { size: ImageSize; steps: number; dailyCap: number }) => void;
+  imageModels: ImageModelDefinition[];
+  defaultImageModel: string;
+  onDefaultImageModelChange: (model: string) => void;
 }
 
 interface SecretsStatus {
@@ -63,6 +68,9 @@ export default function SettingsModal({
   onTempExpiryChange,
   imageSettings,
   onImageSettingsChange,
+  imageModels,
+  defaultImageModel,
+  onDefaultImageModelChange,
 }: SettingsModalProps) {
   const toast = useToast();
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -72,6 +80,7 @@ export default function SettingsModal({
   const [draftStorageMode, setDraftStorageMode] = useState<StorageMode>(storageMode);
   const [draftModel, setDraftModel] = useState(defaultModel);
   const [draftSyncSettings, setDraftSyncSettings] = useState(syncSettings);
+  const imageModel = imageModels.find((model) => model.id === defaultImageModel) || imageModels[0];
 
   // Prompt library state
   const [newPromptName, setNewPromptName] = useState("");
@@ -949,8 +958,11 @@ export default function SettingsModal({
                 <section className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
                   <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-white/40">Image generation defaults</h3>
                   <p className="text-xs text-gray-500 dark:text-white/50">Workers Free includes 10,000 Neurons per day shared by chat and images. Chat usage shares this Cloudflare allocation and is not tracked here.</p>
-                  <label className="block text-sm">Size<select value={imageSettings.size} onChange={(e) => onImageSettingsChange({ ...imageSettings, size: e.target.value })} className="mt-2 block w-full rounded-lg border border-black/10 dark:border-white/10 bg-transparent p-2"><option value="model-default">Model default (1024px)</option></select></label>
-                  <label className="block text-sm">Steps<select value={imageSettings.steps} onChange={(e) => onImageSettingsChange({ ...imageSettings, steps: Number(e.target.value) })} className="mt-2 block w-full rounded-lg border border-black/10 dark:border-white/10 bg-transparent p-2">{[1, 2, 3, 4, 5, 6, 7, 8].map((steps) => <option key={steps} value={steps}>{steps}</option>)}</select></label>
+                  <ImageModelPicker models={imageModels} value={defaultImageModel} size={imageSettings.size} steps={imageSettings.steps} onChange={onDefaultImageModelChange} />
+                  {imageModel && <>
+                    {imageModel.sizes.length > 1 && <label className="block text-sm">Size<select value={imageModel.sizes.includes(imageSettings.size) ? imageSettings.size : imageModel.defaultSize} onChange={(e) => onImageSettingsChange({ ...imageSettings, size: e.target.value as ImageSize })} className="mt-2 block w-full rounded-lg border border-black/10 dark:border-white/10 bg-transparent p-2">{imageModel.sizes.map((size) => <option key={size} value={size}>{size === "model-default" ? `Model default (${imageModel.defaultWidth} × ${imageModel.defaultHeight})` : IMAGE_SIZE_LABELS[size]}</option>)}</select></label>}
+                    <label className="block text-sm">Steps<input type="number" min={imageModel.steps.min} max={imageModel.steps.max} step="1" disabled={imageModel.steps.fixed} value={imageModel.steps.fixed ? imageModel.steps.default : Math.min(imageModel.steps.max, Math.max(imageModel.steps.min, imageSettings.steps))} onChange={(e) => onImageSettingsChange({ ...imageSettings, steps: Math.min(imageModel.steps.max, Math.max(imageModel.steps.min, Number(e.target.value) || imageModel.steps.default)) })} className="mt-2 block w-full rounded-lg border border-black/10 dark:border-white/10 bg-transparent p-2 disabled:opacity-50" />{imageModel.steps.fixed && <span className="text-xs text-gray-500">This model uses a fixed {imageModel.steps.default}-step process.</span>}</label>
+                  </>}
                   <label className="block text-sm">Estimated daily image cap (Neurons; 0 disables)<input type="number" min="0" step="10" value={imageSettings.dailyCap} onChange={(e) => onImageSettingsChange({ ...imageSettings, dailyCap: Math.max(0, Number(e.target.value)) })} className="mt-2 block w-full rounded-lg border border-black/10 dark:border-white/10 bg-transparent p-2" /></label>
                   <p className="text-xs text-gray-500 dark:text-white/50">Estimate uses documented model pricing and default output size. It counts image generations on this device only; chat usage is shared and not tracked here.</p>
                 </section>

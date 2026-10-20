@@ -2,7 +2,8 @@ import { useEffect, useRef } from "react";
 import type { Model } from "../hooks/useModels";
 import type { StorageMode } from "../storage";
 import ModelPicker from "./ModelPicker";
-import type { Model as ImageModel } from "../hooks/useModels";
+import ImageModelPicker from "./ImageModelPicker";
+import type { ImageModelDefinition, ImageSize } from "../../shared/imageModels";
 
 interface ChatInputProps {
   onSend: (content: string) => void;
@@ -20,10 +21,12 @@ interface ChatInputProps {
   onModelChange: (model: string) => void;
   imageMode: boolean;
   onImageModeChange: (enabled: boolean) => void;
-  imageModels: ImageModel[];
+  imageModels: ImageModelDefinition[];
   imageModelValue: string;
   onImageModelChange: (model: string) => void;
   imageGenerating: boolean;
+  imageSize: ImageSize;
+  imageSteps: number;
 }
 
 export default function ChatInput({
@@ -40,7 +43,7 @@ export default function ChatInput({
   models,
   modelValue,
   onModelChange,
-  imageMode, onImageModeChange, imageModels, imageModelValue, onImageModelChange, imageGenerating,
+  imageMode, onImageModeChange, imageModels, imageModelValue, onImageModelChange, imageGenerating, imageSize, imageSteps,
 }: ChatInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -121,8 +124,7 @@ export default function ChatInput({
           <div className="flex items-center justify-between mt-2 pt-2 border-t-[0.5px] border-black/5 dark:border-white/5">
             <button type="button" onClick={() => onImageModeChange(!imageMode)} className={`text-xs rounded-full px-3 py-1.5 border ${imageMode ? "bg-[#0A84FF]/10 border-[#0A84FF]/40 text-[#0A84FF]" : "border-black/10 dark:border-white/10 text-gray-500 dark:text-white/60"}`} aria-pressed={imageMode}>Image</button>
             {imageMode ? <>
-              <ModelPicker models={imageModels} value={imageModelValue} onChange={onImageModelChange} disabled={imageGenerating} className="max-w-[200px]" />
-              <span className="text-[10px] text-gray-400 hidden sm:inline">10,000 Neurons/day shared with chat</span>
+              <div className="max-w-[250px] min-w-0"><ImageModelPicker models={imageModels} value={imageModelValue} size={imageSize} steps={imageSteps} onChange={onImageModelChange} disabled={imageGenerating} compact /></div>
             </> : <ModelPicker
               models={models}
               value={modelValue}

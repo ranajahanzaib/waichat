@@ -16,6 +16,7 @@ import { exportWorkspace } from "./utils/exportUtils";
 import { parseImportFile } from "./utils/importUtils";
 import { generateImage, estimateImageNeurons, readImageMetadata } from "./utils/imageGeneration";
 import { saveImageBytes } from "./storage/images";
+import { getImageModel, normalizeImageSettings, type ImageSize } from "../shared/imageModels";
 
 const STORAGE_MODE_KEY = "waichat:storage-mode";
 const SYNC_SETTINGS_KEY = "waichat:sync-settings";
@@ -131,14 +132,25 @@ export default function App() {
   const { transferState, initiateMove, executeMove, cancelMove, retryPendingCloudDeletes } =
     useTransfer();
 
-  const { models, imageModels, refreshModels } = useModels();
+  const { models, imageModels, imageModelsLoaded, refreshModels } = useModels();
   const [imageMode, setImageMode] = useState(false);
   const [imageGenerating, setImageGenerating] = useState(false);
-  const [imageSettings, setImageSettings] = useState(() => {
+  const [imageSettings, setImageSettings] = useState<{ size: ImageSize; steps: number; dailyCap: number }>(() => {
     try { return JSON.parse(localStorage.getItem("waichat:image-settings") || '{"size":"model-default","steps":4,"dailyCap":0}'); }
     catch { return { size: "model-default", steps: 4, dailyCap: 0 }; }
   });
   const [defaultImageModel, setDefaultImageModel] = useState(() => localStorage.getItem("waichat:image-model") || DEFAULT_IMAGE_MODEL_ID);
+  useEffect(() => {
+    if (!imageModelsLoaded || imageModels.some((model) => model.id === defaultImageModel)) return;
+    const fallback = imageModels.find((model) => model.id === DEFAULT_IMAGE_MODEL_ID) || imageModels[0];
+    if (!fallback) return;
+    toast.error("The saved image model is no longer available. Switched to the default image model.");
+    setDefaultImageModel(fallback.id);
+    localStorage.setItem("waichat:image-model", fallback.id);
+    const updated = { ...imageSettings, size: fallback.defaultSize, steps: fallback.steps.default };
+    setImageSettings(updated);
+    localStorage.setItem("waichat:image-settings", JSON.stringify(updated));
+  }, [defaultImageModel, imageModels, imageModelsLoaded, imageSettings, toast]);
   const [defaultModel, setDefaultModel] = useState(
     () => localStorage.getItem(DEFAULT_MODEL_KEY) ?? DEFAULT_MODEL_ID,
   );
@@ -183,6 +195,15 @@ export default function App() {
   } = useChat(storageMode, pendingSelectionRef, (mode) => {
     handleStorageToggle(mode);
   });
+
+  useEffect(() => {
+    const savedModel = activeConversation?.image_model;
+    if (!imageModelsLoaded || !savedModel || imageModels.some((model) => model.id === savedModel)) return;
+    const fallback = imageModels.find((model) => model.id === defaultImageModel) || imageModels.find((model) => model.id === DEFAULT_IMAGE_MODEL_ID) || imageModels[0];
+    if (!fallback) return;
+    toast.error("This chat's saved image model is no longer available. Switched to the default image model.");
+    void updateActiveImageModel(fallback.id).catch(() => {});
+  }, [activeConversation?.id, activeConversation?.image_model, defaultImageModel, imageModels, imageModelsLoaded, toast, updateActiveImageModel]);
 
   const activeConversationIdRef = useRef<string | null>(null);
   useEffect(() => {
@@ -598,10 +619,21 @@ export default function App() {
   };
 
   const handleGenerateImage = async (prompt: string, prior?: Message) => {
-    const model = prior?.model || activeConversation?.image_model || defaultImageModel;
-    const conversation = activeConversation || await newConversation(defaultModel, storageMode, selectedPromptId, effectiveSystemPrompt || null);
-    const steps = prior ? (readImageMetadata(prior.image_metadata)?.steps || imageSettings.steps || 4) : (imageSettings.steps || 4);
-    const estimate = estimateImageNeurons(steps);
+    if (imageModels.length === 0) {
+      toast.error("No supported image models are currently available.");
+      return;
+    }
+    const requestedModel = prior?.model || activeConversation?.image_model || defaultImageModel;
+    const model = imageModels.some((item) => item.id === requestedModel)
+      ? requestedModel
+      : imageModels.find((item) => item.id === DEFAULT_IMAGE_MODEL_ID)?.id || imageModels[0]?.id || DEFAULT_IMAGE_MODEL_ID;
+    if (model !== requestedModel) toast.error("The saved image model is no longer available. Switched to the default image model.");
+    const modelDefinition = getImageModel(model);
+    if (!modelDefinition) { toast.error("No supported image models are currently available."); return; }
+    const previousMetadata = prior ? readImageMetadata(prior.image_metadata) : undefined;
+    const normalizedSettings = normalizeImageSettings(modelDefinition, previousMetadata?.size || imageSettings.size, previousMetadata?.steps || imageSettings.steps);
+    const { size, steps } = normalizedSettings;
+    const estimate = estimateImageNeurons(model, size, steps);
     const dayKey = new Date().toISOString().slice(0, 10);
     const usageKey = `waichat:image-neurons:${dayKey}`;
     const used = Number(localStorage.getItem(usageKey) || 0);
@@ -609,13 +641,15 @@ export default function App() {
       toast.error("Estimated daily image cap reached. Adjust it in Settings or try tomorrow.");
       return;
     }
+    if (estimate > 2_500 && !window.confirm(`This image is estimated to use ${estimate.toLocaleString()} Neurons, more than 25% of the 10,000 Neurons/day free allocation. Continue?`)) return;
+    const conversation = activeConversation || await newConversation(defaultModel, storageMode, selectedPromptId, effectiveSystemPrompt || null);
     setImageGenerating(true);
     try {
       if (!conversation.image_model || conversation.image_model !== model) {
         await createStorage(storageMode).updateConversationImageModel(conversation.id, model);
         if (activeConversation) await updateActiveImageModel(model);
       }
-      const result = await generateImage(prompt, model, steps);
+      const result = await generateImage(prompt, model, size, steps);
       localStorage.setItem(usageKey, String(used + estimate));
       const imageId = crypto.randomUUID();
       await saveImageBytes(imageId, result.blob);
@@ -625,7 +659,7 @@ export default function App() {
       await appendMessage({
         id: messageId, conversation_id: conversation.id, role: "assistant", content: prompt,
         created_at: Date.now(), model, parent_id: parentId,
-        type: "image", image_metadata: { prompt, model, size: imageSettings.size, steps, seed: result.seed, created_at: Date.now(), mime_type: result.blob.type, image_id: imageId },
+        type: "image", image_metadata: { prompt, model, size, steps, seed: result.seed, created_at: Date.now(), mime_type: result.blob.type, image_id: imageId, license_badge: modelDefinition.licenseBadge },
       });
       setActiveVersion(parentId || rootKey, messageId);
       if (!prior && messages.length === 0) {
@@ -652,7 +686,7 @@ export default function App() {
         await appendMessage({
           id: failedId, conversation_id: conversation.id, role: "assistant", content: prompt,
           created_at: Date.now(), model, parent_id: parentId,
-          type: "image", image_metadata: { prompt, model, size: imageSettings.size, steps, created_at: Date.now(), error: message },
+          type: "image", image_metadata: { prompt, model, size, steps, created_at: Date.now(), error: message, license_badge: modelDefinition.licenseBadge },
         }).catch(() => {});
         setActiveVersion(parentId || `${conversation.id}_root`, failedId);
       }
@@ -660,9 +694,24 @@ export default function App() {
   };
 
   const handleImageModelChange = (model: string) => {
+    const nextModel = getImageModel(model);
+    const normalized = nextModel ? { size: nextModel.defaultSize, steps: nextModel.steps.default } : null;
     setDefaultImageModel(model);
     localStorage.setItem("waichat:image-model", model);
+    if (normalized) {
+      const updated = { ...imageSettings, ...normalized };
+      setImageSettings(updated);
+      localStorage.setItem("waichat:image-settings", JSON.stringify(updated));
+    }
     if (activeConversation) updateActiveImageModel(model);
+  };
+
+  const handleImageSettingsChange = (settings: { size: ImageSize; steps: number; dailyCap: number }) => {
+    const definition = getImageModel(defaultImageModel);
+    const normalized = definition ? normalizeImageSettings(definition, settings.size, settings.steps) : { size: settings.size, steps: settings.steps };
+    const updated = { ...settings, ...normalized };
+    setImageSettings(updated);
+    localStorage.setItem("waichat:image-settings", JSON.stringify(updated));
   };
 
   const handleInputChange = useCallback((val: string) => {
@@ -1365,6 +1414,8 @@ export default function App() {
             imageModelValue={activeConversation?.image_model || defaultImageModel}
             onImageModelChange={handleImageModelChange}
             imageGenerating={imageGenerating}
+            imageSize={imageSettings.size}
+            imageSteps={imageSettings.steps}
           />
         </main>
 
@@ -1394,7 +1445,10 @@ export default function App() {
           tempExpiry={tempExpiry}
           onTempExpiryChange={handleTempExpiryChange}
           imageSettings={imageSettings}
-          onImageSettingsChange={(settings: typeof imageSettings) => { setImageSettings(settings); localStorage.setItem("waichat:image-settings", JSON.stringify(settings)); }}
+          onImageSettingsChange={handleImageSettingsChange}
+          imageModels={imageModels}
+          defaultImageModel={defaultImageModel}
+          onDefaultImageModelChange={handleImageModelChange}
         />
       </div>
       <ToastContainer />

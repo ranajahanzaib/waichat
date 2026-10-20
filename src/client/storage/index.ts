@@ -1,3 +1,5 @@
+import type { ImageSize } from "../../shared/imageModels";
+
 export interface Conversation {
   id: string;
   title: string;
@@ -28,7 +30,7 @@ export interface Message {
 export interface ImageMetadata {
   prompt: string;
   model: string;
-  size: "model-default";
+  size: ImageSize;
   steps: number;
   seed?: number;
   created_at: number;
@@ -36,6 +38,7 @@ export interface ImageMetadata {
   local_only?: boolean;
   image_id?: string;
   error?: string;
+  license_badge?: string;
 }
 
 export interface DeleteMessageResult {
