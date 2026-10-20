@@ -461,7 +461,7 @@ export default function MessageList({
         </p>
         {pendingImage && <div className="w-full max-w-[720px] mx-auto mb-6"><div className="h-64 rounded-xl bg-black/5 dark:bg-white/5 animate-pulse" /><p className="text-xs text-gray-500 mt-2">Generating image…</p></div>}
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 w-full max-w-4xl mb-10">
+        {!isStreaming && !pendingImage && <div className="grid grid-cols-1 md:grid-cols-3 gap-5 w-full max-w-4xl mb-10">
           <button
             type="button"
             onClick={() =>
@@ -547,7 +547,7 @@ export default function MessageList({
               Dive into science, physics, history, or anything else you're curious about.
             </div>
           </button>
-        </div>
+        </div>}
       </div>
     );
   }
